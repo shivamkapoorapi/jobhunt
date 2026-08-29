@@ -337,8 +337,14 @@ HOW TO SCORE FIT (0-100):
   domain and slightly wrong level>
 - 30-54: <worth tracking, not worth applying to now - say why>
 - 10-29: <wrong level, or a weak domain match>
-- 0-9: <hard disqualifiers: seniority far beyond them, wrong function,
+- 0-9: <hard disqualifiers: seniority far beyond them,
   no-sponsorship or clearance-only postings, roles they cannot start>
+
+HARD CAP - WRONG FUNCTION: name the job family this person is targeting. A role
+in a different family scores AT MOST 30 no matter how well their skills fit.
+Someone moving from engineering into product can obviously still do the
+engineering job - that is exactly why this cap has to be explicit, or every
+Software Engineer posting floods the list at 60.
 
 BOOST for: <the domains, industries and keywords they have genuinely shipped and
 could defend in an interview>.

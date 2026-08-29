@@ -109,6 +109,17 @@ a security clearance, or requires a minimum of 4+ years of experience.
 Use "unknown" when the text does not contain enough evidence either way.
 When "eligible" is "no", name the blocker in "why".
 
+FUNCTION MISMATCH IS A HARD CAP, NOT A DEDUCTION. Work out the job family
+this posting belongs to (product management, software engineering, data,
+design, sales, marketing, operations...) and compare it with the family the
+candidate is targeting. If they differ, the score is AT MOST 30 - however
+well the tech stack, seniority, location or domain line up. A Software
+Engineer role is not a Product Manager role for someone seeking product, even
+when they can obviously do the work. Say "wrong function" in "why".
+Titles like "Product Engineer", "Technical Product Manager" or "Product
+Analyst" ARE in the product family; "Software Engineer, Product Platform" is
+not. Judge the actual role, not a keyword.
+
 The "why" must be concrete and specific to THIS posting - name the reason
 (e.g. "Summer 2027 PM intern, NYC, pricing domain" or
 "needs 5+ yrs, she is still in school"). Never write a generic phrase.
