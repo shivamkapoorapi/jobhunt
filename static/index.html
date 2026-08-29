@@ -432,6 +432,11 @@
   }
   .fpop .flinks{display:flex;gap:12px;margin-top:7px}
   .norows{color:var(--muted);padding:14px 0;font-size:13px}
+  .extlink{
+    color:var(--blue);text-decoration:none;border-bottom:1px solid var(--blue);
+  }
+  .extlink:hover{background:var(--blue);color:#fff;border-bottom-color:var(--blue)}
+  .extlink::after{content:' 97';font-size:.85em}
 
   /* ---------- ATTACHED RESUME ---------- */
   .attached{
@@ -719,7 +724,8 @@
         <span class="check" aria-hidden="true">&#10003;</span>
         <span class="done-tag">Saved</span>
       </div>
-      <p class="note">Paste a Gemini API key. It is tested against the live model before anything is written to disk, then stored locally in your <span class="mono-inline">.env</span> file.</p>
+      <p class="note">Paste a Gemini API key. It is tested against the live model before anything is saved.<br>
+        Don&#39;t have one? Get a free key from <a class="extlink" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
       <div class="row">
         <div class="field">
           <input type="password" id="keyInput" autocomplete="off" spellcheck="false" aria-label="Gemini API key" placeholder="AQ.Ab8RN6... or AIza...">
