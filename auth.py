@@ -220,8 +220,8 @@ def ensure_admin():
             pw_hash = hash_password(plain)
         user = {
             "id": uid,
-            "email": os.environ.get("ADMIN_EMAIL", username + "@local"),
-            "name": os.environ.get("ADMIN_NAME", "Shivam Kapoor"),
+            "email": os.environ.get("ADMIN_EMAIL", username + "@local").strip(),
+            "name": os.environ.get("ADMIN_NAME", "Shivam Kapoor").strip(),
             "picture": "",
             "provider": "local",
             "username": username,
