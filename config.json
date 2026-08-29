@@ -487,6 +487,6 @@
     }
   ],
   "use_simplify": true,
-  "min_ai_fit": 80,
-  "fresh_days": 6
+  "min_ai_fit": 55,
+  "fresh_days": 2
 }

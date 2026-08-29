@@ -37,10 +37,22 @@ import openpyxl
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, "static")
-UPLOAD_DIR = os.path.join(PROJECT_DIR, "uploads")
-ENV_PATH = os.path.join(PROJECT_DIR, ".env")
-CONFIG_PATH = os.path.join(PROJECT_DIR, "config.json")
-PROFILE_PATH = os.path.join(PROJECT_DIR, "profile.json")
+
+# On Vercel (and any serverless host) the deployment directory is READ-ONLY and
+# only /tmp accepts writes. Creating uploads/ beside the code at import time is
+# what crashed the function with FUNCTION_INVOCATION_FAILED before it served a
+# single request. Everything writable therefore moves under /tmp there.
+# /tmp is also wiped between invocations, so nothing written there survives --
+# see DEPLOY.md. This keeps the app *running*; it does not make it persistent.
+IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+WRITABLE_DIR = os.path.join("/tmp", "resumify") if IS_SERVERLESS else PROJECT_DIR
+
+UPLOAD_DIR = os.path.join(WRITABLE_DIR, "uploads")
+ENV_PATH = os.path.join(PROJECT_DIR, ".env")            # read-only is fine
+CONFIG_PATH = os.path.join(PROJECT_DIR, "config.json")  # shipped defaults
+CONFIG_WRITE_PATH = (os.path.join(WRITABLE_DIR, "config.json")
+                     if IS_SERVERLESS else CONFIG_PATH)
+PROFILE_PATH = os.path.join(WRITABLE_DIR, "profile.json")
 EXCEL_NAME = "job_matches_latest.xlsx"
 READY_SHEET = "Ready to Apply"
 
@@ -48,8 +60,17 @@ ALLOWED_EXT = {".pdf", ".docx", ".txt"}
 MAX_RESUME_BYTES = 10 * 1024 * 1024          # 10 MB
 CREATE_NO_WINDOW = 0x08000000                # Windows: no console flash
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(STATIC_DIR, exist_ok=True)
+
+def _ensure_dir(path):
+    """Best effort. A read-only filesystem must not stop the app importing."""
+    try:
+        os.makedirs(path, exist_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+_ensure_dir(UPLOAD_DIR)
 
 app = Flask(__name__, static_folder=None)
 # Bigger than our own limit so an oversize file reaches our friendly message
@@ -163,8 +184,19 @@ _config_lock = threading.Lock()
 
 
 def _load_config():
-    cfg = _read_json(CONFIG_PATH, {})
+    """Prefer the writable copy, fall back to the one shipped in the repo.
+
+    On serverless these are two different files: config.json in the deployment
+    is read-only, so any saved threshold lands in the /tmp copy instead."""
+    cfg = _read_json(CONFIG_WRITE_PATH, None)
+    if not isinstance(cfg, dict) or not cfg:
+        cfg = _read_json(CONFIG_PATH, {})
     return cfg if isinstance(cfg, dict) else {}
+
+
+def _save_config(cfg):
+    _ensure_dir(os.path.dirname(CONFIG_WRITE_PATH))
+    _write_json_atomic(CONFIG_WRITE_PATH, cfg)
 
 
 def _output_dir():
@@ -1069,7 +1101,7 @@ def _merge_profile_into_config(profile):
                 changed = True
         if not changed:
             return
-        _write_json_atomic(CONFIG_PATH, cfg)
+        _save_config( cfg)
 
 
 @app.route("/api/resume", methods=["POST"])
@@ -1123,6 +1155,7 @@ def resume_upload():
     profile["resume_size"] = int(size)
     profile["resume_uploaded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    _ensure_dir(os.path.dirname(PROFILE_PATH))
     try:
         with open(PROFILE_PATH, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2, ensure_ascii=False)
@@ -1145,6 +1178,16 @@ def resume_upload():
 @app.route("/api/run", methods=["POST"])
 @login_required
 def run_search():
+    if IS_SERVERLESS:
+        # A search takes 7-15 minutes and writes files. A serverless function is
+        # capped at 60-300s on an ephemeral filesystem, so this cannot work here
+        # however it is dressed up. Say so plainly rather than starting a
+        # subprocess that gets killed halfway with a confusing error.
+        return jsonify(ok=False, error=(
+            "Searches cannot run on this hosted deployment - one takes 7-15 "
+            "minutes and a serverless function is cut off after 60-300 seconds. "
+            "Run it on your own machine with `python jobhunt.py run`, or a VM, "
+            "and the results appear here. See DEPLOY.md."))
     with _lock:
         if _run["running"]:
             return jsonify(ok=False, error="already running")
@@ -1534,8 +1577,12 @@ def login_page():
 @app.route("/api/auth/config")
 def auth_config():
     """What the login page should offer. Never leaks the client secret."""
+    # Without ADMIN_PASSWORD_HASH there is no local account at all, and the
+    # login form would just say "wrong password" forever. Surface that instead.
     return jsonify(ok=True,
                    google=auth.google_configured(),
+                   local=bool(auth.ensure_admin()),
+                   serverless=IS_SERVERLESS,
                    auth_disabled=AUTH_DISABLED,
                    user=auth.public_user(auth.current_user()))
 
@@ -1852,7 +1899,7 @@ def threshold_set():
         if fresh is not None:
             cfg[FRESH_DAYS_KEY] = fresh
         try:
-            _write_json_atomic(CONFIG_PATH, cfg)
+            _save_config( cfg)
         except OSError as e:
             return jsonify(ok=False, error=f"Could not write config.json: {e}")
         saved_value = _as_int(cfg.get(THRESHOLD_KEY))

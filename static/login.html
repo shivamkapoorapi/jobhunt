@@ -144,6 +144,11 @@
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(d && d.user){ location.href = '/'; return; }
+      if(d && d.local === false){
+        show('err', 'No admin account is configured on this deployment. Set ' +
+                    'ADMIN_USERNAME and ADMIN_PASSWORD_HASH in the environment ' +
+                    'variables, then redeploy.');
+      }
       if(d && !d.google){
         var b = $('gbtn');
         b.classList.add('off');

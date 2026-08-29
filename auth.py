@@ -31,7 +31,13 @@ from functools import wraps
 from flask import jsonify, redirect, request, session
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(HERE, "data")
+
+# Serverless hosts give you a read-only deployment and a writable /tmp. Creating
+# data/ beside the code at import time crashes the function before it can serve
+# anything, so the store moves to /tmp there. /tmp does not survive between
+# invocations -- accounts written there are lost. See DEPLOY.md.
+IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+DATA_DIR = os.path.join("/tmp", "resumify", "data") if IS_SERVERLESS     else os.path.join(HERE, "data")
 USERS_PATH = os.path.join(DATA_DIR, "users.json")
 ACTIVITY_PATH = os.path.join(DATA_DIR, "activity.json")
 SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
@@ -42,8 +48,17 @@ PBKDF2_ROUNDS = 240_000
 
 _lock = threading.Lock()
 
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(USER_DIR, exist_ok=True)
+def _ensure_dir(path):
+    """Best effort: a read-only filesystem must not stop this module importing."""
+    try:
+        os.makedirs(path, exist_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+_ensure_dir(DATA_DIR)
+_ensure_dir(USER_DIR)
 
 
 # --------------------------------------------------------------------------
@@ -60,7 +75,7 @@ def _read_json(path, default):
 
 def _write_json_atomic(path, data):
     tmp = path + ".tmp"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    _ensure_dir(os.path.dirname(path))
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.flush()
@@ -162,7 +177,10 @@ def upsert_google_user(info):
                 u["picture"] = info.get("picture") or u.get("picture", "")
                 u["last_login"] = _now()
                 u["login_count"] = int(u.get("login_count") or 0) + 1
-                _save_users(users)
+                try:
+                    _save_users(users)
+                except OSError:
+                    pass
                 return u
         user = {
             "id": uid,
@@ -177,7 +195,10 @@ def upsert_google_user(info):
             "login_count": 1,
         }
         users.append(user)
-        _save_users(users)
+        try:
+            _save_users(users)
+        except OSError:
+            pass
         return user
 
 
@@ -212,7 +233,12 @@ def ensure_admin():
             "login_count": 0,
         }
         users.append(user)
-        _save_users(users)
+        try:
+            _save_users(users)
+        except OSError:
+            # Read-only store (serverless cold start). The admin still works for
+            # this invocation; it simply is not persisted.
+            pass
         return user
 
 
@@ -226,7 +252,10 @@ def check_local_login(username, password):
                 if verify_password(password or "", u.get("password_hash") or ""):
                     u["last_login"] = _now()
                     u["login_count"] = int(u.get("login_count") or 0) + 1
-                    _save_users(users)
+                    try:
+                        _save_users(users)
+                    except OSError:
+                        pass          # bookkeeping only - the login still stands
                     return u
                 return None
     return None
@@ -266,7 +295,7 @@ def public_user(u):
 
 def user_dir(uid):
     d = os.path.join(USER_DIR, str(uid))
-    os.makedirs(d, exist_ok=True)
+    _ensure_dir(d)
     return d
 
 
