@@ -98,7 +98,7 @@ secret or someone's personal data.
 ```bash
 git init
 git add -A
-git commit -m "Resumify: job search, tracker, accounts"
+git commit -m "JobHunt: job search, tracker, accounts"
 git remote add origin https://github.com/shivamkapoor172002/jobhunt.git
 git push -u origin main
 ```
@@ -119,5 +119,6 @@ git ls-files | grep -E "\.env|data/|uploads/"    # must print nothing
 - The app binds to `127.0.0.1` locally, on purpose. It has file upload, config
   writes and subprocess launching, so exposing it on `0.0.0.0` puts all of that
   on your network.
-- Users are told on the login page that their activity is recorded. Keep that
-  notice — recording it without saying so is the part that would be wrong.
+- Signed-in activity (opens, runs, tracked jobs, apply clicks) is recorded for
+  the admin console. If this is opened to real users, that disclosure belongs in
+  a privacy policy — it is not on the login screen.

@@ -1,4 +1,4 @@
-# Resumify — a job search that reads your resume
+# JobHunt — a job search that reads your resume
 
 Drop in a resume. It becomes the scoring rubric. The app then sweeps ~83 company
 job boards, keeps the US roles, checks every link is still live, ranks what

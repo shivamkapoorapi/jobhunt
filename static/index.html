@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Resumify</title>
+<title>JobHunt</title>
 <style>
   :root{
     --paper:#EFEDE8;
@@ -682,7 +682,7 @@
   <div class="nav-inner">
     <div class="brand">
       <div class="mark" aria-hidden="true"></div>
-      <div class="wordmark">Resumify</div>
+      <div class="wordmark">JobHunt</div>
     </div>
     <div class="navlinks">
       <a class="navlink active" href="#home" data-view="home">Home</a>
@@ -704,7 +704,7 @@
   <header class="hero">
     <p class="eyebrow">Resume in &middot; shortlist out</p>
     <h1>Four steps between your resume and a ranked Excel file.</h1>
-    <p class="sub">Resumify reads your resume, builds a scoring profile from it, sweeps roughly 83 company job boards, verifies every link, and hands back a ranked spreadsheet. Work through the steps below in order.</p>
+    <p class="sub">JobHunt reads your resume, builds a scoring profile from it, sweeps roughly 83 company job boards, verifies every link, and hands back a ranked spreadsheet. Work through the steps below in order.</p>
     <div id="bootErr"></div>
   </header>
 
@@ -961,7 +961,7 @@
 </div>
 
 <footer>
-  <div class="foot-inner">Resumify &middot; Typeset in LaTeX</div>
+  <div class="foot-inner">JobHunt &middot; Typeset in LaTeX</div>
 </footer>
 
 <script>
@@ -1002,7 +1002,7 @@
     if(!e) return 'Something went wrong.';
     var m = e.message || String(e);
     if(e.name === 'TypeError' || /Failed to fetch|NetworkError|Load failed/i.test(m)){
-      return 'Could not reach the local server. Is the Resumify app still running?';
+      return 'Could not reach the local server. Is the JobHunt app still running?';
     }
     return m;
   }
@@ -1158,7 +1158,7 @@
     fileName.textContent = name + '  ·  ' + prettySize(file.size);
     fileName.classList.add('on');
     if(['.pdf', '.docx', '.txt'].indexOf(ext) === -1){
-      bubble(resOut, 'err', 'Wrong file type', 'Resumify reads PDF, DOCX or TXT files. Drop another file.');
+      bubble(resOut, 'err', 'Wrong file type', 'JobHunt reads PDF, DOCX or TXT files. Drop another file.');
       return;
     }
     showStatus(resStatus, true, 'Reading your resume...');
