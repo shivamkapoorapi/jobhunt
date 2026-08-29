@@ -1,0 +1,23 @@
+# Secrets and personal data — never commit these
+.env
+profile.json
+tracker.json
+uploads/
+state.json
+
+# Generated output
+job_matches_*.xlsx
+jobhunt.log
+server.log
+__pycache__/
+*.pyc
+
+# Accounts, sessions and activity — personal data, never commit
+data/
+history.json
+
+# Resumes are personal data - name, phone, email. This repo is public.
+*.pdf
+*.docx
+!static/**
+sample_output.xlsx

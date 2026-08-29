@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin &middot; Resumify</title>
+<style>
+  :root{
+    --paper:#EFEDE8; --ink:#12100E; --card:#FBFAF7; --red:#F0503C; --blue:#2B35D8;
+    --muted:#6B6862; --faint:#8A867E; --grey:#B9B5AC; --line:#D9D5CC; --green:#1B7F4B;
+    --serif:Georgia,'Times New Roman',Times,serif;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,'Cascadia Mono','Consolas','Courier New',monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);overflow-x:hidden;
+    background-image:
+      repeating-linear-gradient(0deg,rgba(0,0,0,.045) 0 1px,transparent 1px 28px),
+      repeating-linear-gradient(90deg,rgba(0,0,0,.045) 0 1px,transparent 1px 28px);
+  }
+  nav{border-bottom:1px solid var(--ink);background:var(--paper)}
+  .nav-in{
+    max-width:1220px;margin:0 auto;padding:14px 24px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .mark{width:22px;height:26px;border:1.5px solid var(--ink);background:#fff;box-shadow:3px 3px 0 var(--red);flex:0 0 auto}
+  .wordmark{font-family:var(--serif);font-size:22px}
+  .pill{
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    background:var(--ink);color:#fff;padding:4px 9px;
+  }
+  .navsp{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .navlink{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink);text-decoration:none;
+  }
+  .navlink:hover{color:var(--blue)}
+  .navlink.out{color:var(--red)}
+  main{max-width:1220px;margin:0 auto;padding:30px 24px 60px}
+  .eyebrow{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--faint);margin:0 0 8px;
+  }
+  h1{font-family:var(--serif);font-size:clamp(34px,6vw,58px);margin:0 0 6px;font-weight:400;line-height:1.05}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 26px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:28px}
+  .kpi{background:var(--card);border:1px solid var(--ink);box-shadow:5px 5px 0 var(--ink);padding:14px 16px}
+  .kpi .n{font-family:var(--serif);font-size:38px;line-height:1;display:block}
+  .kpi .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .card{
+    background:var(--card);border:1px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+    padding:20px;margin-bottom:26px;position:relative;
+  }
+  .card::after{content:'';position:absolute;top:0;right:0;bottom:0;width:5px;background:var(--red)}
+  h2{font-family:var(--serif);font-size:26px;margin:0 0 4px;font-weight:400}
+  .hint{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  th{
+    text-align:left;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--faint);font-weight:400;
+    border-bottom:1px solid var(--ink);padding:0 12px 8px 0;white-space:nowrap;
+  }
+  td{padding:10px 12px 10px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .who{display:flex;align-items:center;gap:9px}
+  .av{width:26px;height:26px;border:1px solid var(--line);background:#fff;flex:0 0 auto;object-fit:cover}
+  .nm{font-weight:600}
+  .em{font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all}
+  .tag{
+    font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:2px 6px;
+    border:1px solid var(--line);color:var(--muted);white-space:nowrap;
+  }
+  .tag.admin{border-color:var(--blue);color:var(--blue)}
+  .tag.g{border-color:var(--green);color:var(--green)}
+  .num{font-family:var(--mono);font-size:13px}
+  .when{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+  .rowbtn{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    border:1px solid var(--ink);background:transparent;color:var(--ink);padding:5px 9px;cursor:pointer;
+  }
+  .rowbtn:hover{background:var(--ink);color:#fff}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .filters select,.filters input{
+    font-family:var(--mono);font-size:12px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);padding:7px 9px;
+  }
+  .ev{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline;flex-wrap:wrap}
+  .ev:last-child{border-bottom:0}
+  .ev .t{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap;flex:0 0 128px}
+  .ev .u{font-size:12.5px;color:var(--muted);flex:0 0 150px;word-break:break-all}
+  .ev .k{font-size:13px;flex:1 1 200px}
+  .ev .d{font-family:var(--mono);font-size:11px;color:var(--faint);flex:1 1 100%}
+  .feed{max-height:520px;overflow:auto;-webkit-overflow-scrolling:touch}
+  .empty{color:var(--muted);font-size:13.5px;padding:14px 0}
+  .msg{border:1px solid var(--red);background:#FDF1EF;color:#8E2517;padding:11px 13px;font-size:13.5px;margin-bottom:16px}
+  dialog{border:1px solid var(--ink);box-shadow:10px 10px 0 var(--ink);background:var(--card);padding:0;max-width:720px;width:92vw}
+  dialog::backdrop{background:rgba(18,16,14,.45)}
+  .dlg-in{padding:22px}
+  .dlg-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+  .closebtn{border:1px solid var(--ink);background:transparent;font-family:var(--mono);font-size:11px;padding:6px 10px;cursor:pointer}
+  .jrow{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:baseline}
+  .jrow .c{font-weight:600;font-size:13.5px}
+  .jrow .r{font-size:12.5px;color:var(--muted);flex:1}
+  .st{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);color:var(--muted)}
+  .st.applied{border-color:var(--blue);color:var(--blue)}
+  .st.interview{border-color:var(--red);color:var(--red)}
+  .st.offer{border-color:var(--green);color:var(--green)}
+  footer{border-top:1px solid var(--ink);margin-top:10px}
+  .foot-in{
+    max-width:1220px;margin:0 auto;padding:18px 24px 36px;
+    font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
+  }
+  @media (max-width:760px){
+    main{padding:22px 14px 40px}
+    .card{padding:16px 14px;box-shadow:4px 4px 0 var(--ink)}
+    .kpi{box-shadow:3px 3px 0 var(--ink)}
+    .ev .t,.ev .u{flex:1 1 auto}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-in">
+    <div class="mark"></div><span class="wordmark">Resumify</span>
+    <span class="pill">Admin</span>
+    <div class="navsp">
+      <span class="em" id="whoami"></span>
+      <a class="navlink" href="/">App</a>
+      <a class="navlink out" href="#" id="logout">Log out</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <p class="eyebrow">Operations</p>
+  <h1>Who is using this.</h1>
+  <p class="sub">Every account, what they track, and what they have done.</p>
+
+  <div id="err"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <section class="card">
+    <h2>Accounts</h2>
+    <p class="hint">Sorted by most recently active.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>User</th><th>Signed up</th><th>Last seen</th><th>Logins</th>
+          <th>Runs</th><th>Tracking</th><th>Apply clicks</th><th></th>
+        </tr></thead>
+        <tbody id="userBody"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Activity</h2>
+    <p class="hint">Newest first. Times are the server&#39;s clock.</p>
+    <div class="filters">
+      <select id="fUser"><option value="">All users</option></select>
+      <select id="fType"><option value="">All activity</option></select>
+      <button type="button" class="rowbtn" id="refresh">Refresh</button>
+    </div>
+    <div class="feed" id="feed"><p class="empty">Loading...</p></div>
+  </section>
+</main>
+
+<dialog id="dlg"><div class="dlg-in">
+  <div class="dlg-head"><h2 id="dlgName">User</h2>
+    <button type="button" class="closebtn" id="dlgClose">Close</button></div>
+  <div id="dlgBody"></div>
+</div></dialog>
+
+<footer><div class="foot-in">Resumify &middot; Admin console</div></footer>
+
+<script>
+(function(){
+  'use strict';
+  function $(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function err(t){ $('err').innerHTML = '<div class="msg">' + esc(t) + '</div>'; }
+  async function getJSON(u){
+    var r = await fetch(u, {credentials:'same-origin'});
+    if(r.status === 401 || r.status === 403){ location.href = '/login'; throw new Error('auth'); }
+    return r.json();
+  }
+  /* An avatar URL comes from Google. Anything that is not plain http(s) is
+     dropped rather than written into src. */
+  function safeImg(u){
+    u = String(u || '');
+    return /^https?:\/\//i.test(u) ? u : '';
+  }
+
+  var LABELS = {};
+
+  function kpi(n, l){
+    return '<div class="kpi"><span class="n">' + esc(String(n)) + '</span>' +
+           '<span class="l">' + esc(l) + '</span></div>';
+  }
+
+  async function loadUsers(){
+    var d = await getJSON('/api/admin/users');
+    if(!d || !d.ok){ err((d && d.error) || 'Could not load users.'); return; }
+    var users = d.users || [];
+
+    var totalTracking = 0, totalRuns = 0, totalApplies = 0, active = 0;
+    var today = new Date().toISOString().slice(0,10);
+    users.forEach(function(u){
+      totalTracking += u.tracker_count || 0;
+      totalRuns += u.runs || 0;
+      totalApplies += u.apply_clicks || 0;
+      if(String(u.last_seen || '').slice(0,10) === today) active++;
+    });
+    $('kpis').innerHTML = kpi(users.length, 'accounts') + kpi(active, 'active today') +
+      kpi(totalRuns, 'searches run') + kpi(totalTracking, 'jobs tracked') +
+      kpi(totalApplies, 'apply clicks');
+
+    var sel = $('fUser');
+    sel.innerHTML = '<option value="">All users</option>' + users.map(function(u){
+      return '<option value="' + esc(u.id) + '">' + esc(u.name || u.email) + '</option>';
+    }).join('');
+
+    if(!users.length){
+      $('userBody').innerHTML = '<tr><td colspan="8" class="empty">' +
+        'No accounts yet. The first Google sign-in will appear here.</td></tr>';
+      return;
+    }
+    $('userBody').innerHTML = users.map(function(u){
+      var img = safeImg(u.picture);
+      var avatar = img
+        ? '<img class="av" src="' + esc(img) + '" alt="" referrerpolicy="no-referrer">'
+        : '<span class="av"></span>';
+      var tags = (u.is_admin ? '<span class="tag admin">ADMIN</span>' : '') +
+                 (u.provider === 'google' ? '<span class="tag g">GOOGLE</span>' : '<span class="tag">LOCAL</span>');
+      return '<tr>' +
+        '<td><div class="who">' + avatar + '<div><div class="nm">' + esc(u.name || '-') + '</div>' +
+          '<div class="em">' + esc(u.email || '') + '</div></div></div><div style="margin-top:5px">' + tags + '</div></td>' +
+        '<td class="when">' + esc((u.created || '').slice(0,16)) + '</td>' +
+        '<td class="when">' + esc((u.last_seen || u.last_login || '-').slice(0,16)) + '</td>' +
+        '<td class="num">' + esc(String(u.login_count || 0)) + '</td>' +
+        '<td class="num">' + esc(String(u.runs || 0)) + '</td>' +
+        '<td class="num">' + esc(String(u.tracker_count || 0)) + '</td>' +
+        '<td class="num">' + esc(String(u.apply_clicks || 0)) + '</td>' +
+        '<td><button type="button" class="rowbtn" data-u="' + esc(u.id) + '">View</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function evLine(e){
+    var label = LABELS[e.type] || e.type;
+    var detail = '';
+    if(e.detail && typeof e.detail === 'object'){
+      detail = Object.keys(e.detail).map(function(k){
+        return k + '=' + e.detail[k];
+      }).join('  ');
+    } else if(e.detail){ detail = String(e.detail); }
+    return '<div class="ev">' +
+      '<span class="t">' + esc(e.ts || '') + '</span>' +
+      '<span class="u">' + esc(e.name || e.email || e.user_id || '-') + '</span>' +
+      '<span class="k">' + esc(label) + '</span>' +
+      (detail ? '<span class="d">' + esc(detail) + '</span>' : '') +
+      '</div>';
+  }
+
+  async function loadFeed(){
+    var q = [];
+    if($('fUser').value) q.push('user=' + encodeURIComponent($('fUser').value));
+    if($('fType').value) q.push('type=' + encodeURIComponent($('fType').value));
+    q.push('limit=400');
+    var d = await getJSON('/api/admin/activity?' + q.join('&'));
+    if(!d || !d.ok){ err((d && d.error) || 'Could not load activity.'); return; }
+    LABELS = d.labels || {};
+    if($('fType').options.length <= 1){
+      $('fType').innerHTML = '<option value="">All activity</option>' +
+        Object.keys(LABELS).map(function(k){
+          return '<option value="' + esc(k) + '">' + esc(LABELS[k]) + '</option>';
+        }).join('');
+    }
+    var ev = d.events || [];
+    $('feed').innerHTML = ev.length ? ev.map(evLine).join('')
+      : '<p class="empty">Nothing recorded yet in this window.</p>';
+  }
+
+  async function openUser(uid){
+    var d = await getJSON('/api/admin/user/' + encodeURIComponent(uid));
+    if(!d || !d.ok){ err((d && d.error) || 'Could not load that user.'); return; }
+    $('dlgName').textContent = (d.user && (d.user.name || d.user.email)) || 'User';
+    var jobs = d.tracker || [];
+    var html = '<p class="hint">' + esc(d.user.email || '') + ' &middot; ' +
+      esc(String(jobs.length)) + ' tracked</p>';
+    html += jobs.length
+      ? '<div style="max-height:230px;overflow:auto">' + jobs.map(function(j){
+          return '<div class="jrow"><span class="c">' + esc(j.company || '') + '</span>' +
+            '<span class="r">' + esc(j.role || '') + '</span>' +
+            '<span class="st ' + esc(j.status || '') + '">' + esc(j.status || '') + '</span>' +
+            '<span class="when">' + esc(j.added || '') + '</span></div>';
+        }).join('') + '</div>'
+      : '<p class="empty">No tracked jobs.</p>';
+    html += '<h2 style="font-size:20px;margin:18px 0 6px">Recent activity</h2>';
+    html += (d.events || []).length
+      ? '<div style="max-height:260px;overflow:auto">' + d.events.map(evLine).join('') + '</div>'
+      : '<p class="empty">No activity recorded.</p>';
+    $('dlgBody').innerHTML = html;
+    var dlg = $('dlg');
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+  }
+
+  $('userBody').addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('button[data-u]') : null;
+    if(b) openUser(b.getAttribute('data-u'));
+  });
+  $('dlgClose').addEventListener('click', function(){
+    var dlg = $('dlg');
+    if(dlg.close) dlg.close(); else dlg.removeAttribute('open');
+  });
+  $('fUser').addEventListener('change', loadFeed);
+  $('fType').addEventListener('change', loadFeed);
+  $('refresh').addEventListener('click', function(){ loadUsers(); loadFeed(); });
+  $('logout').addEventListener('click', async function(e){
+    e.preventDefault();
+    try{ await fetch('/api/auth/logout', {method:'POST', credentials:'same-origin'}); }catch(_e){}
+    location.href = '/login';
+  });
+
+  getJSON('/api/me').then(function(d){
+    if(d && d.user) $('whoami').textContent = d.user.email || d.user.name || '';
+  }).catch(function(){});
+  loadUsers().catch(function(e){ if(e.message !== 'auth') err('Could not load users.'); });
+  loadFeed().catch(function(e){ if(e.message !== 'auth') err('Could not load activity.'); });
+})();
+</script>
+</body>
+</html>

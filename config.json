@@ -1,0 +1,492 @@
+{
+  "us_only": true,
+  "target_titles": [
+    "Product Manager",
+    "Associate Product Manager",
+    "Product Manager Intern",
+    "Technical Product Manager",
+    "APM Program",
+    "Product Management Intern - Summer 2027",
+    "Graduate Product Manager",
+    "Incoming Product Manager"
+  ],
+  "secondary_titles": [
+    "Software Engineer",
+    "Product Analyst",
+    "Data Product Manager",
+    "AI Product Manager",
+    "Business Analyst",
+    "Strategy and Operations Associate"
+  ],
+  "exclude_title_words": [
+    "account executive",
+    "senior product manager",
+    "director",
+    "staff product manager",
+    "principal",
+    "head of product",
+    "vp"
+  ],
+  "want_internships": true,
+  "want_fulltime": true,
+  "locations": [
+    "New York, NY",
+    "San Francisco, CA",
+    "Seattle, WA",
+    "Remote"
+  ],
+  "strict_location": false,
+  "drop_no_sponsorship": true,
+  "salary_floor": 90000,
+  "salary_target": 140000,
+  "skills": [
+    "Product Strategy",
+    "Product Analytics",
+    "Roadmapping",
+    "A/B Testing",
+    "SQL",
+    "Agile",
+    "User Research",
+    "Python",
+    "Java",
+    "Kotlin",
+    "Spring Boot",
+    "React",
+    "MongoDB",
+    "Kafka",
+    "LLMs",
+    "RAG",
+    "LangChain",
+    "LangGraph",
+    "ChromaDB",
+    "Vector Embeddings",
+    "Prompt Engineering",
+    "Git",
+    "Jira",
+    "Figma",
+    "PostHog"
+  ],
+  "max_age_days": 45,
+  "verify_links": true,
+  "output_dir": "",
+  "companies": [
+    {
+      "name": "Stripe",
+      "ats": "greenhouse",
+      "token": "stripe"
+    },
+    {
+      "name": "Databricks",
+      "ats": "greenhouse",
+      "token": "databricks"
+    },
+    {
+      "name": "Robinhood",
+      "ats": "greenhouse",
+      "token": "robinhood"
+    },
+    {
+      "name": "Instacart",
+      "ats": "greenhouse",
+      "token": "instacart"
+    },
+    {
+      "name": "Affirm",
+      "ats": "greenhouse",
+      "token": "affirm"
+    },
+    {
+      "name": "Samsara",
+      "ats": "greenhouse",
+      "token": "samsara"
+    },
+    {
+      "name": "Datadog",
+      "ats": "greenhouse",
+      "token": "datadog"
+    },
+    {
+      "name": "Cloudflare",
+      "ats": "greenhouse",
+      "token": "cloudflare"
+    },
+    {
+      "name": "Peloton",
+      "ats": "greenhouse",
+      "token": "peloton"
+    },
+    {
+      "name": "Betterment",
+      "ats": "greenhouse",
+      "token": "betterment"
+    },
+    {
+      "name": "Squarespace",
+      "ats": "greenhouse",
+      "token": "squarespace"
+    },
+    {
+      "name": "Flatiron Health",
+      "ats": "greenhouse",
+      "token": "flatironhealth"
+    },
+    {
+      "name": "MongoDB",
+      "ats": "greenhouse",
+      "token": "mongodb"
+    },
+    {
+      "name": "Yext",
+      "ats": "greenhouse",
+      "token": "yext"
+    },
+    {
+      "name": "Attentive",
+      "ats": "greenhouse",
+      "token": "attentive"
+    },
+    {
+      "name": "Justworks",
+      "ats": "greenhouse",
+      "token": "justworks"
+    },
+    {
+      "name": "SeatGeek",
+      "ats": "greenhouse",
+      "token": "seatgeek"
+    },
+    {
+      "name": "Discord",
+      "ats": "greenhouse",
+      "token": "discord"
+    },
+    {
+      "name": "Figma",
+      "ats": "greenhouse",
+      "token": "figma"
+    },
+    {
+      "name": "Airtable",
+      "ats": "greenhouse",
+      "token": "airtable"
+    },
+    {
+      "name": "Gusto",
+      "ats": "greenhouse",
+      "token": "gusto"
+    },
+    {
+      "name": "Brex",
+      "ats": "greenhouse",
+      "token": "brex"
+    },
+    {
+      "name": "Coinbase",
+      "ats": "greenhouse",
+      "token": "coinbase"
+    },
+    {
+      "name": "Dropbox",
+      "ats": "greenhouse",
+      "token": "dropbox"
+    },
+    {
+      "name": "Reddit",
+      "ats": "greenhouse",
+      "token": "reddit"
+    },
+    {
+      "name": "Pinterest",
+      "ats": "greenhouse",
+      "token": "pinterest"
+    },
+    {
+      "name": "Lyft",
+      "ats": "greenhouse",
+      "token": "lyft"
+    },
+    {
+      "name": "Scale AI",
+      "ats": "greenhouse",
+      "token": "scaleai"
+    },
+    {
+      "name": "Asana",
+      "ats": "greenhouse",
+      "token": "asana"
+    },
+    {
+      "name": "Amplitude",
+      "ats": "greenhouse",
+      "token": "amplitude"
+    },
+    {
+      "name": "Duolingo",
+      "ats": "greenhouse",
+      "token": "duolingo"
+    },
+    {
+      "name": "SoFi",
+      "ats": "greenhouse",
+      "token": "sofi"
+    },
+    {
+      "name": "Marqeta",
+      "ats": "greenhouse",
+      "token": "marqeta"
+    },
+    {
+      "name": "Zocdoc",
+      "ats": "greenhouse",
+      "token": "zocdoc"
+    },
+    {
+      "name": "Roblox",
+      "ats": "greenhouse",
+      "token": "roblox"
+    },
+    {
+      "name": "Klaviyo",
+      "ats": "greenhouse",
+      "token": "klaviyo"
+    },
+    {
+      "name": "Nuro",
+      "ats": "greenhouse",
+      "token": "nuro"
+    },
+    {
+      "name": "Verkada",
+      "ats": "greenhouse",
+      "token": "verkada"
+    },
+    {
+      "name": "Airbnb",
+      "ats": "greenhouse",
+      "token": "airbnb"
+    },
+    {
+      "name": "Jane Street",
+      "ats": "greenhouse",
+      "token": "janestreet"
+    },
+    {
+      "name": "Palantir",
+      "ats": "lever",
+      "token": "palantir"
+    },
+    {
+      "name": "Spotify",
+      "ats": "lever",
+      "token": "spotify"
+    },
+    {
+      "name": "Match Group",
+      "ats": "lever",
+      "token": "matchgroup"
+    },
+    {
+      "name": "OpenAI",
+      "ats": "ashby",
+      "token": "openai"
+    },
+    {
+      "name": "Linear",
+      "ats": "ashby",
+      "token": "linear"
+    },
+    {
+      "name": "Vanta",
+      "ats": "ashby",
+      "token": "vanta"
+    },
+    {
+      "name": "Replit",
+      "ats": "ashby",
+      "token": "replit"
+    },
+    {
+      "name": "Harvey",
+      "ats": "ashby",
+      "token": "harvey"
+    },
+    {
+      "name": "Decagon",
+      "ats": "ashby",
+      "token": "decagon"
+    },
+    {
+      "name": "Abridge",
+      "ats": "ashby",
+      "token": "abridge"
+    },
+    {
+      "name": "Sierra",
+      "ats": "ashby",
+      "token": "sierra"
+    },
+    {
+      "name": "OpenEvidence",
+      "ats": "ashby",
+      "token": "openevidence"
+    },
+    {
+      "name": "Mercor",
+      "ats": "ashby",
+      "token": "mercor"
+    },
+    {
+      "name": "Plaid",
+      "ats": "ashby",
+      "token": "plaid"
+    },
+    {
+      "name": "Anthropic",
+      "ats": "greenhouse",
+      "token": "anthropic"
+    },
+    {
+      "name": "Perplexity",
+      "ats": "ashby",
+      "token": "perplexity"
+    },
+    {
+      "name": "Sardine",
+      "ats": "ashby",
+      "token": "sardine"
+    },
+    {
+      "name": "Nubank",
+      "ats": "ashby",
+      "token": "nubank"
+    },
+    {
+      "name": "Nuvei",
+      "ats": "workable",
+      "token": "nuvei"
+    },
+    {
+      "name": "Toast",
+      "ats": "greenhouse",
+      "token": "toast"
+    },
+    {
+      "name": "Carta",
+      "ats": "greenhouse",
+      "token": "carta"
+    },
+    {
+      "name": "GitLab",
+      "ats": "greenhouse",
+      "token": "gitlab"
+    },
+    {
+      "name": "Chime",
+      "ats": "greenhouse",
+      "token": "chime"
+    },
+    {
+      "name": "Zapier",
+      "ats": "ashby",
+      "token": "zapier"
+    },
+    {
+      "name": "Calendly",
+      "ats": "greenhouse",
+      "token": "calendly"
+    },
+    {
+      "name": "Webflow",
+      "ats": "greenhouse",
+      "token": "webflow"
+    },
+    {
+      "name": "Mercury",
+      "ats": "greenhouse",
+      "token": "mercury"
+    },
+    {
+      "name": "Modern Health",
+      "ats": "greenhouse",
+      "token": "modernhealth"
+    },
+    {
+      "name": "Alloy",
+      "ats": "greenhouse",
+      "token": "alloy"
+    },
+    {
+      "name": "Current",
+      "ats": "greenhouse",
+      "token": "current"
+    },
+    {
+      "name": "Doximity",
+      "ats": "greenhouse",
+      "token": "doximity"
+    },
+    {
+      "name": "Checkr",
+      "ats": "greenhouse",
+      "token": "checkr"
+    },
+    {
+      "name": "Narvar",
+      "ats": "greenhouse",
+      "token": "narvar"
+    },
+    {
+      "name": "Paxos",
+      "ats": "ashby",
+      "token": "paxos"
+    },
+    {
+      "name": "BetterHelp",
+      "ats": "greenhouse",
+      "token": "betterhelp"
+    },
+    {
+      "name": "1Password",
+      "ats": "ashby",
+      "token": "1password"
+    },
+    {
+      "name": "Glean",
+      "ats": "smartrecruiters",
+      "token": "glean"
+    },
+    {
+      "name": "Together AI",
+      "ats": "smartrecruiters",
+      "token": "together"
+    },
+    {
+      "name": "ElevenLabs",
+      "ats": "ashby",
+      "token": "elevenlabs"
+    },
+    {
+      "name": "Figure",
+      "ats": "greenhouse",
+      "token": "figure"
+    },
+    {
+      "name": "CoreWeave",
+      "ats": "greenhouse",
+      "token": "coreweave"
+    },
+    {
+      "name": "Databento",
+      "ats": "greenhouse",
+      "token": "databento"
+    },
+    {
+      "name": "Ramp",
+      "ats": "ashby",
+      "token": "ramp"
+    }
+  ],
+  "use_simplify": true,
+  "min_ai_fit": 80,
+  "fresh_days": 6
+}

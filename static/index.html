@@ -1,0 +1,2604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resumify</title>
+<style>
+  :root{
+    --paper:#EFEDE8;
+    --ink:#12100E;
+    --card:#FBFAF7;
+    --red:#F0503C;
+    --blue:#2B35D8;
+    --muted:#6B6862;
+    --faint:#8A867E;
+    --grey:#B9B5AC;
+    --line:#D9D5CC;
+    --amber:#D9932B;
+    --serif:Georgia,'Times New Roman',Times,serif;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,'Cascadia Mono','Consolas','Courier New',monospace;
+    --shadow:10px 10px 0 var(--ink);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.55;
+    min-height:100vh;
+    position:relative;
+    overflow-x:hidden;
+  }
+  /* subtle engineered-paper grid */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:0;
+    background-image:
+      repeating-linear-gradient(to right, rgba(0,0,0,0.045) 0 1px, transparent 1px 28px),
+      repeating-linear-gradient(to bottom, rgba(0,0,0,0.045) 0 1px, transparent 1px 28px);
+  }
+  .wrap{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 28px}
+
+  /* ---------- NAV ---------- */
+  .nav{border-bottom:1px solid var(--ink);position:relative;z-index:2}
+  .nav-inner{
+    max-width:1160px;margin:0 auto;padding:16px 28px;
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+  .mark{
+    width:24px;height:24px;border:1px solid var(--ink);
+    background:transparent;box-shadow:4px 4px 0 var(--red);flex:0 0 auto;
+  }
+  .wordmark{font-family:var(--serif);font-size:27px;letter-spacing:-0.015em;line-height:1}
+  .navlinks{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .navlink{
+    font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;
+    color:var(--ink);text-decoration:none;padding:6px 11px;border:1px solid transparent;
+  }
+  .navlink:hover{border-color:var(--ink)}
+  .navlink.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .soon{font-size:7px;color:var(--red);vertical-align:super;letter-spacing:0.12em;margin-left:3px}
+  .vdiv{width:1px;height:20px;background:var(--line)}
+  .chip-count{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:0.08em;color:var(--blue);
+    border:1px solid var(--blue);padding:4px 8px;white-space:nowrap;
+  }
+  .who{font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--muted);text-transform:uppercase}
+  .logout{font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--red);text-decoration:none;text-transform:uppercase}
+  .logout:hover{text-decoration:underline}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:66px 0 34px}
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.18em;
+    color:var(--faint);margin:0 0 12px;
+  }
+  h1{
+    font-family:var(--serif);font-weight:400;color:var(--ink);
+    font-size:clamp(34px,5.4vw + 14px,64px);line-height:1.04;letter-spacing:-0.02em;
+    margin:0 0 18px;max-width:16ch;text-wrap:balance;overflow-wrap:break-word;
+  }
+  .sub{color:var(--muted);font-size:16px;max-width:60ch;margin:0}
+
+  /* ---------- CARDS ---------- */
+  .steps{display:flex;flex-direction:column;gap:44px;padding-bottom:60px}
+  .card{
+    position:relative;background:var(--card);border:1px solid var(--ink);
+    box-shadow:var(--shadow);padding:30px 46px 30px 32px;
+  }
+  .card::after{
+    content:"";position:absolute;top:0;right:0;bottom:0;width:6px;background:var(--red);
+  }
+  .step{transition:opacity .28s ease}
+  .step.locked{opacity:.45;pointer-events:none;user-select:none}
+  .lock-tag{
+    position:absolute;top:14px;right:22px;font-family:var(--mono);font-size:10px;
+    letter-spacing:0.16em;color:var(--faint);border:1px solid var(--line);padding:2px 7px;
+  }
+  .step:not(.locked) .lock-tag{display:none}
+  .done-tag{
+    display:none;font-family:var(--mono);font-size:10px;letter-spacing:0.16em;
+    color:#1B7A46;border:1px solid #1B7A46;padding:2px 7px;margin-left:10px;vertical-align:3px;
+  }
+  .step.done .done-tag{display:inline-block}
+  .card-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  h2{
+    font-family:var(--serif);font-weight:400;font-size:clamp(23px,3.4vw,30px);
+    line-height:1.15;margin:0;letter-spacing:-0.01em;
+  }
+  .check{color:#1B7A46;font-size:22px;line-height:1;display:none}
+  .step.done .check{display:inline}
+  .note{color:var(--muted);font-size:14.5px;margin:10px 0 20px;max-width:70ch}
+  .mono-inline{font-family:var(--mono);font-size:12.5px}
+
+  ul.list{list-style:none;padding:0;margin:14px 0 20px}
+  ul.list li{display:flex;gap:10px;align-items:flex-start;color:var(--muted);font-size:14px;padding:3px 0}
+  ul.list li .b{font-family:var(--mono);color:var(--blue);font-size:11px;line-height:1.6;flex:0 0 auto}
+
+  /* ---------- CONTROLS ---------- */
+  .row{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap}
+  .field{position:relative;flex:1 1 340px;min-width:0;display:flex}
+  input[type=password],input[type=text]{
+    flex:1 1 auto;min-width:0;font-family:var(--mono);font-size:13px;color:var(--ink);
+    background:#fff;border:1px solid var(--ink);border-radius:0;padding:13px 62px 13px 14px;
+  }
+  input:focus{outline:2px solid var(--blue);outline-offset:1px}
+  .peek{
+    position:absolute;right:1px;top:1px;bottom:1px;width:56px;border:0;border-left:1px solid var(--line);
+    background:transparent;cursor:pointer;font-family:var(--mono);font-size:10px;
+    letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;
+  }
+  .peek:hover{color:var(--ink)}
+  .btn{
+    font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:0.1em;
+    border:1px solid var(--ink);border-radius:0;padding:13px 20px;cursor:pointer;
+    background:transparent;color:var(--ink);line-height:1.2;display:inline-block;
+    text-decoration:none;text-align:center;transition:transform .06s ease, box-shadow .06s ease;
+  }
+  .btn-primary{background:var(--blue);color:#fff;box-shadow:5px 5px 0 var(--ink)}
+  .btn-primary:active{transform:translate(2px,2px);box-shadow:3px 3px 0 var(--ink)}
+  .btn-ghost:active{transform:translate(1px,1px)}
+  .btn:disabled,.btn[disabled]{
+    background:var(--grey);color:#F3F1EC;border-color:var(--grey);
+    box-shadow:none;cursor:not-allowed;transform:none;
+  }
+  .btn-big{padding:17px 26px;font-size:13px}
+  .hidden{display:none !important}
+
+  /* ---------- STATUS / BUBBLES ---------- */
+  .status{
+    display:none;align-items:center;gap:10px;margin-top:16px;
+    font-family:var(--mono);font-size:11.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);
+  }
+  .status.on{display:flex}
+  .spinner{
+    width:13px;height:13px;flex:0 0 auto;border:2px solid var(--line);border-top-color:var(--blue);
+    border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .bubble{
+    margin-top:18px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--blue);
+    padding:14px 16px;font-size:14px;color:var(--ink);
+  }
+  .bubble .blabel{
+    font-family:var(--mono);font-size:10px;letter-spacing:0.18em;color:var(--faint);
+    text-transform:uppercase;display:block;margin-bottom:7px;
+  }
+  .bubble.err{border-color:#EBB6AC;border-left-color:var(--red);background:#FDF4F2}
+  .bubble.err .blabel{color:var(--red)}
+  .bubble p{margin:0;white-space:pre-wrap;word-break:break-word}
+
+  /* ---------- DROP ZONE ---------- */
+  .drop{
+    min-height:180px;border:2px dashed var(--grey);background:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+    text-align:center;padding:26px 18px;cursor:pointer;transition:border-color .15s ease, background .15s ease;
+  }
+  .drop:hover{border-color:var(--muted)}
+  .drop.over{border-color:var(--blue);background:rgba(43,53,216,.06)}
+  .drop .d1{font-family:var(--mono);font-size:13px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink)}
+  .drop .d2{font-size:14px;color:var(--muted)}
+  .drop .d3{font-family:var(--mono);font-size:10.5px;letter-spacing:0.16em;color:var(--faint);text-transform:uppercase}
+  .filename{
+    margin-top:14px;font-family:var(--mono);font-size:11.5px;letter-spacing:0.06em;color:var(--muted);
+    display:none;word-break:break-all;
+  }
+  .filename.on{display:block}
+
+  /* ---------- PROFILE ---------- */
+  .profile{margin-top:20px;border-top:1px solid var(--line);padding-top:20px;display:none}
+  .profile.on{display:block}
+  .p-name{font-family:var(--serif);font-size:27px;line-height:1.15;margin:0}
+  .p-head{font-family:var(--mono);font-size:11.5px;letter-spacing:0.08em;color:var(--blue);text-transform:uppercase;margin:7px 0 0}
+  .p-sum{color:var(--muted);font-size:14.5px;margin:12px 0 0;max-width:72ch}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+  .chip{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:0.06em;color:var(--muted);
+    border:1px solid var(--line);background:#fff;padding:4px 8px;
+  }
+  .chip.loc{color:var(--blue);border-color:var(--blue)}
+
+  /* ---------- PROGRESS ---------- */
+  .progress-wrap{display:none;margin-top:22px}
+  .progress-wrap.on{display:block}
+  .bar{height:22px;border:1px solid var(--ink);background:#E7E4DD;overflow:hidden}
+  .bar span{display:block;height:100%;width:0%;background:var(--blue);transition:width .35s ease}
+  .barmeta{
+    display:flex;justify-content:space-between;gap:14px;margin-top:9px;flex-wrap:wrap;
+    font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);
+  }
+  .console{
+    margin-top:16px;height:260px;overflow:auto;-webkit-overflow-scrolling:touch;
+    background:var(--ink);color:#D6D2C9;
+    font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:12px 14px;border:1px solid var(--ink);
+  }
+  .console div{white-space:pre-wrap;word-break:break-word}
+  .console .ph{color:#6D685F}
+
+  /* ---------- RESULTS ---------- */
+  .result{display:none;margin-top:8px}
+  .result.on{display:block}
+  .totalbox{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .bignum{font-family:var(--serif);font-size:clamp(46px,9vw,72px);line-height:1;letter-spacing:-0.03em}
+  .totlab{font-family:var(--mono);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--faint)}
+  .tables{display:flex;gap:34px;flex-wrap:wrap;margin-top:22px}
+  .bucket-col{flex:0 0 auto;min-width:210px}
+  .colhead{font-family:var(--mono);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--faint);margin:0 0 9px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  /* every table lives in its own horizontal scroller so it never widens the page */
+  .tscroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .buckets td{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:0.06em;color:var(--muted);
+    padding:5px 0;border-bottom:1px solid var(--line);
+  }
+  .buckets td:last-child{text-align:right;color:var(--ink)}
+  .topwrap{flex:1 1 420px;min-width:0;overflow-x:auto}
+  .top th{
+    font-family:var(--mono);font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);
+    text-align:left;padding:0 12px 8px 0;border-bottom:1px solid var(--ink);white-space:nowrap;
+  }
+  .top td{padding:10px 12px 10px 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink)}
+  .top td.fit{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .top td.loc{color:var(--muted);font-size:12.5px}
+  .top td.co{font-weight:600}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;background:var(--grey);vertical-align:1px}
+  .dot.hi{background:var(--blue)}
+  .dot.mid{background:var(--amber)}
+  .why{display:block;color:var(--muted);font-size:12px;margin-top:3px;max-width:52ch}
+  .xlmeta{font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--muted);margin:16px 0 0;word-break:break-all}
+
+  /* ---------- VIEWS ---------- */
+  .view{display:block}
+  .nav-badge{
+    display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:0.08em;
+    border:1px solid currentColor;padding:1px 5px;margin-left:7px;vertical-align:1px;line-height:1.35;
+  }
+
+  /* ---------- TRACKER ---------- */
+  .trk-title{text-shadow:3px 3px 0 var(--red)}
+  .flab{
+    display:block;font-family:var(--mono);font-size:10px;letter-spacing:0.16em;
+    text-transform:uppercase;color:var(--faint);margin:0 0 7px;
+  }
+  .inp{
+    width:100%;min-width:0;font-family:var(--mono);font-size:13px;color:var(--ink);
+    background:#fff;border:1px solid var(--ink);border-radius:0;padding:12px 14px;
+  }
+  .inp:focus{outline:2px solid var(--blue);outline-offset:1px}
+  .addbar{box-shadow:10px 10px 0 var(--blue);margin-bottom:46px}
+  .addgrid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:14px;align-items:end}
+  .addgrid .btn{white-space:nowrap}
+
+  .kanban{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;align-items:start;padding-bottom:60px}
+  .kcol{min-width:0}
+  .khead{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:0.15em;text-transform:uppercase;
+    color:var(--ink);margin:0 0 8px;
+  }
+  .krule{height:3px;background:var(--ink);margin-bottom:14px}
+  .kcol[data-status="applied"] .krule{background:var(--blue)}
+  .kcol[data-status="interview"] .krule{background:var(--red)}
+  .kcol[data-status="offer"] .krule{background:#1B7F4B}
+  .kcol[data-status="rejected"] .krule{background:#9A968E}
+  .kbody{display:flex;flex-direction:column;gap:12px}
+  .kempty{
+    border:1px dashed var(--grey);padding:22px 10px;text-align:center;
+    font-family:var(--mono);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--faint);
+  }
+  .jcard{background:var(--card);border:1px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:12px 13px}
+  .jtop{display:flex;align-items:baseline;gap:9px;justify-content:space-between}
+  .jco{font-family:var(--serif);font-size:17px;line-height:1.2;color:var(--ink);text-decoration:none;word-break:break-word}
+  a.jco{border-bottom:1px solid var(--line)}
+  a.jco:hover{border-bottom-color:var(--ink)}
+  .jrole{font-size:13px;color:var(--ink);margin-top:3px;word-break:break-word}
+  .jloc{font-size:12px;color:var(--muted);margin-top:4px;word-break:break-word}
+  .jdate{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--faint);margin-top:8px;
+  }
+  .jacts,.jconfirm{
+    display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    margin-top:10px;border-top:1px solid var(--line);padding-top:9px;
+  }
+  .cq{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--red)}
+  .gbtn{
+    font-family:var(--mono);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;
+    border:1px solid var(--line);border-radius:0;background:transparent;color:var(--muted);
+    padding:4px 8px;line-height:1.3;cursor:pointer;
+  }
+  .gbtn:hover{border-color:var(--ink);color:var(--ink)}
+  .gbtn:active{transform:translate(1px,1px)}
+  .gbtn.gred{color:var(--red);border-color:#EBB6AC}
+  .gbtn.gred:hover{border-color:var(--red);color:var(--red)}
+  .gbtn[disabled]{cursor:not-allowed;opacity:.55}
+  .gbtn[disabled]:hover{border-color:var(--line);color:var(--muted)}
+  .gbtn.gdone{color:#1B7F4B;border-color:#1B7F4B;opacity:1}
+  .gbtn.gdone:hover{color:#1B7F4B;border-color:#1B7F4B}
+  .fitchip{
+    font-family:var(--mono);font-size:11px;border:1px solid var(--grey);color:var(--muted);
+    background:#fff;padding:1px 6px;white-space:nowrap;flex:0 0 auto;
+  }
+  .fitchip.hi{border-color:var(--blue);color:var(--blue)}
+  .fitchip.mid{border-color:var(--amber);color:var(--amber)}
+
+  /* ---------- RANKED LIST + THRESHOLD ---------- */
+  .rank{margin-top:34px;border-top:1px solid var(--line);padding-top:22px}
+  .rankhead{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  .rankhead .colhead{margin:0}
+  .ranktable{
+    max-height:430px;overflow:auto;-webkit-overflow-scrolling:touch;
+    border:1px solid var(--line);background:#fff;padding:0 14px;
+  }
+  .ranktable th{position:sticky;top:0;background:#fff;padding-top:11px;z-index:1}
+  .ranktable td{padding:9px 12px 9px 0}
+  .ranktable th:last-child,.ranktable td:last-child{text-align:right;padding-right:0}
+  .ranktable a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+  .ranktable a:hover{border-bottom-color:var(--ink)}
+
+  /* ---------- EXCEL-STYLE COLUMN FILTERS ---------- */
+  .fbar{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    margin:0 0 10px;padding:9px 11px;border:1px solid var(--line);background:#fff;
+  }
+  .fbar .srch{
+    flex:1 1 220px;min-width:0;font-family:var(--mono);font-size:12px;
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:7px 9px;
+  }
+  .fbar .srch:focus{outline:none;border-color:var(--blue)}
+  .fcount{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+  .fclear{
+    font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    border:1px solid var(--ink);background:transparent;color:var(--ink);
+    padding:6px 10px;cursor:pointer;
+  }
+  .fclear:disabled{border-color:var(--grey);color:var(--grey);cursor:not-allowed}
+  .fclear:not(:disabled):hover{background:var(--ink);color:#fff}
+
+  /* the header cell becomes the anchor for its dropdown */
+  .ranktable th{position:sticky;top:0;background:#fff;padding-top:11px;z-index:2}
+  th.fth{white-space:nowrap}
+  .fbtn{
+    font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    border:0;background:transparent;color:var(--faint);cursor:pointer;
+    padding:2px 4px 2px 0;display:inline-flex;align-items:center;gap:4px;
+  }
+  .fbtn:hover{color:var(--ink)}
+  .fbtn .car{font-size:9px;color:var(--grey)}
+  .fbtn.on{color:var(--blue)}
+  .fbtn.on .car{color:var(--blue)}
+  .fbtn .sortmark{font-size:9px;color:var(--blue)}
+
+  /* fixed, not absolute: .ranktable is an overflow:auto scroller, which would
+     clip an absolutely positioned panel. JS places it under its button. */
+  .fpop{
+    position:fixed;z-index:60;
+    min-width:212px;max-width:290px;
+    background:#fff;border:1px solid var(--ink);box-shadow:5px 5px 0 var(--ink);
+    padding:10px;text-align:left;font-weight:400;
+    font-family:var(--sans);letter-spacing:normal;text-transform:none;
+  }
+  .fpop .frow{display:flex;gap:6px;margin-bottom:8px}
+  .fpop .fin{
+    width:100%;min-width:0;font-family:var(--mono);font-size:12px;
+    border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 7px;
+  }
+  .fpop .fin:focus{outline:none;border-color:var(--blue)}
+  .fpop .flabel{
+    display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--faint);margin:0 0 4px;
+  }
+  .fsort{display:flex;gap:6px;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .fsort button{
+    flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+    border:1px solid var(--line);background:transparent;color:var(--ink);
+    padding:6px 4px;cursor:pointer;
+  }
+  .fsort button:hover{border-color:var(--ink)}
+  .fsort button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .fchecks{max-height:190px;overflow:auto;-webkit-overflow-scrolling:touch;margin:6px 0 0}
+  .fchecks label{
+    display:flex;align-items:center;gap:7px;padding:4px 2px;cursor:pointer;
+    font-size:12.5px;color:var(--ink);line-height:1.3;
+  }
+  .fchecks label:hover{background:var(--paper)}
+  .fchecks input{flex:0 0 auto;accent-color:var(--blue);width:14px;height:14px}
+  .fchecks .cnt{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .fquick{display:flex;flex-wrap:wrap;gap:5px}
+  .fquick button{
+    font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+    border:1px solid var(--line);background:transparent;color:var(--ink);
+    padding:5px 8px;cursor:pointer;
+  }
+  .fquick button:hover{border-color:var(--ink)}
+  .fquick button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .fpop .fdone{
+    width:100%;margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;border:1px solid var(--ink);background:var(--ink);color:#fff;
+    padding:7px;cursor:pointer;
+  }
+  .fpop .flink{
+    background:none;border:0;padding:0;color:var(--blue);cursor:pointer;
+    font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  }
+  .fpop .flinks{display:flex;gap:12px;margin-top:7px}
+  .norows{color:var(--muted);padding:14px 0;font-size:13px}
+
+  /* ---------- ATTACHED RESUME ---------- */
+  .attached{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    border:1px solid var(--line);background:#fff;padding:8px 11px;margin-bottom:14px;
+  }
+  .att-lab{
+    font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    background:var(--ink);color:#fff;padding:3px 7px;
+  }
+  .att-name{
+    font-family:var(--mono);font-size:12.5px;color:var(--blue);word-break:break-all;
+    text-decoration:none;border-bottom:1px solid transparent;cursor:pointer;
+  }
+  .att-name:hover{border-bottom-color:var(--blue)}
+  .att-name::after{content:' \2197';font-size:10px;color:var(--faint)}
+  .att-meta{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:auto;white-space:nowrap}
+
+  /* ---------- RUN HISTORY ---------- */
+  .hist{border:1px solid var(--ink);background:#fff;padding:16px;margin:0 0 26px}
+  .histhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .histhead .colhead{margin:0}
+  .histdates{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .histdates .inp{
+    font-family:var(--mono);font-size:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:6px 8px;width:auto;
+  }
+  .histdates .flab{margin:0}
+  .daysroll{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px;margin-bottom:14px}
+  .dcard{
+    flex:0 0 auto;min-width:118px;border:1px solid var(--line);background:var(--card);padding:9px 11px;
+  }
+  .dcard.today{border-color:var(--blue);background:#fff}
+  .dcard .dd{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--faint)}
+  .dcard .dn{font-family:var(--serif);font-size:26px;line-height:1.1;color:var(--ink)}
+  .dcard .dl{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .runlist{display:flex;flex-direction:column;gap:10px;max-height:440px;overflow:auto;-webkit-overflow-scrolling:touch}
+  .rcard{border:1px solid var(--line);background:var(--card);padding:12px 13px}
+  .rcard.today{border-left:3px solid var(--blue)}
+  .rtop{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+  .rwhen{font-family:var(--mono);font-size:12px;color:var(--ink)}
+  .rbig{font-family:var(--serif);font-size:22px;color:var(--ink);line-height:1}
+  .rlab{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .rtag{
+    font-family:var(--mono);font-size:9px;letter-spacing:.12em;padding:2px 6px;
+    border:1px solid var(--line);color:var(--muted);white-space:nowrap;
+  }
+  .rtag.warn{border-color:var(--amber);color:var(--amber)}
+  .rtag.new{border-color:var(--blue);color:var(--blue)}
+  .rtag.est{border-color:var(--grey);color:var(--grey)}
+  .rstats{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:9px}
+  .rstat{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .rstat b{color:var(--ink);font-weight:400;font-size:13px}
+  .distbar{display:flex;height:11px;border:1px solid var(--line);overflow:hidden;background:#fff}
+  .distbar i{display:block;height:100%}
+  .b90{background:var(--blue)}
+  .b75{background:#5B63E0}
+  .b55{background:var(--amber)}
+  .b30{background:#C9B79A}
+  .b0{background:var(--grey)}
+  .bun{background:repeating-linear-gradient(45deg,#E4E0D7,#E4E0D7 3px,#F2EFE9 3px,#F2EFE9 6px)}
+  .distkey{display:flex;gap:11px;flex-wrap:wrap;margin-top:6px}
+  .distkey span{font-family:var(--mono);font-size:9.5px;color:var(--faint);display:flex;align-items:center;gap:4px}
+  .distkey i{width:9px;height:9px;display:inline-block}
+  .nohist{color:var(--muted);font-size:13px;padding:10px 0}
+  .top td.posted{font-family:var(--mono);font-size:12px;white-space:nowrap;color:var(--muted)}
+  .tag-fresh{
+    font-family:var(--mono);font-size:9px;letter-spacing:0.14em;
+    background:var(--blue);color:#fff;padding:1px 5px;margin-left:6px;white-space:nowrap;vertical-align:1px;
+  }
+  .tag-blocked{
+    font-family:var(--mono);font-size:9px;letter-spacing:0.14em;
+    color:var(--red);border:1px solid var(--red);padding:1px 5px;margin-left:6px;white-space:nowrap;vertical-align:1px;
+  }
+  tr.row-blocked td{opacity:.55}
+  .thresh{margin-top:30px;border-top:1px solid var(--line);padding-top:22px}
+  .threshrow{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+  .threshrow .inp{width:120px;flex:0 0 auto}
+  .thnote{font-family:var(--mono);font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);padding-bottom:13px}
+  .help{color:var(--muted);font-size:13px;margin:12px 0 0;max-width:76ch}
+
+  @media (max-width:1080px){
+    .addgrid{grid-template-columns:1fr 1fr}
+    .addbar{box-shadow:6px 6px 0 var(--blue)}
+  }
+  /* below 900 the five columns become a swipeable row, not five slivers */
+  @media (max-width:900px){
+    .kanban{
+      display:flex;gap:14px;align-items:flex-start;
+      overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+      scroll-snap-type:x proximity;overscroll-behavior-x:contain;
+      padding-bottom:34px;
+    }
+    .kcol{flex:0 0 78vw;max-width:300px;scroll-snap-align:start;scroll-margin-left:2px}
+    .kbody{padding-bottom:2px}
+  }
+  @media (max-width:700px){
+    .addgrid{grid-template-columns:1fr;gap:12px}
+    .addgrid > div:last-child .flab{display:none}
+    .addgrid .btn{width:100%}
+    .trk-title{text-shadow:2px 2px 0 var(--red)}
+    .threshrow{gap:10px}
+    .threshrow > div{width:100%}
+    .threshrow .inp{width:100%}
+    .threshrow .btn{width:100%}
+    .thnote{padding-bottom:0}
+    /* the filter bar stacks; the panel gets near-full width but stays tappable */
+    .fbar{gap:8px}
+    .fbar .srch{flex:1 1 100%;font-size:16px}   /* 16px stops iOS zooming on focus */
+    .fclear{flex:1 1 auto;min-height:40px}
+    .fcount{order:3}
+    .fpop{min-width:0;width:calc(100vw - 24px);max-width:320px}
+    .fpop .fin{font-size:16px;padding:9px}
+    .fchecks label{padding:9px 2px;font-size:14px}
+    .fchecks input{width:18px;height:18px}
+    .fquick button,.fsort button{min-height:38px;padding:8px 10px}
+    .fpop .fdone{min-height:42px}
+    .fbtn{min-height:34px}
+  }
+
+  /* ---------- FOOTER ---------- */
+  footer{border-top:1px solid var(--ink);margin-top:20px}
+  .foot-inner{
+    max-width:1160px;margin:0 auto;padding:20px 28px 40px;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);
+  }
+
+  @media (max-width:1024px){
+    .card{padding:28px 40px 28px 28px}
+    .tables{gap:28px}
+  }
+  @media (max-width:900px){
+    :root{--shadow:6px 6px 0 var(--ink)}
+    .card{padding:24px 32px 24px 22px}
+    .nav-inner{gap:12px}
+  }
+
+  /* ---- nav: brand row + swipeable mono strip, never an overflow ---- */
+  @media (max-width:760px){
+    .nav-inner{
+      padding:12px 16px;flex-direction:column;align-items:stretch;gap:10px;flex-wrap:nowrap;
+    }
+    .brand{margin-right:0}
+    .wordmark{font-size:24px}
+    .navlinks{
+      flex-wrap:nowrap;gap:4px;
+      margin:0 -16px;padding:0 16px 3px;
+      overflow-x:auto;overflow-y:hidden;
+      -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+      scrollbar-width:none;-ms-overflow-style:none;
+    }
+    .navlinks::-webkit-scrollbar{width:0;height:0;display:none}
+    .navlinks > *{flex:0 0 auto;white-space:nowrap}
+    .navlink{padding:6px 10px;font-size:11px}
+    .vdiv{align-self:center;height:16px}
+
+    .hero{padding:44px 0 26px}
+    h1{max-width:none}
+    .sub{font-size:15px}
+    .steps{gap:30px}
+
+    /* step 01/02 controls stack full width */
+    .row{flex-direction:column;align-items:stretch}
+    .field{flex:1 1 auto;width:100%}
+    .btn{width:100%}
+    .btn-big{padding:15px 22px}
+
+    /* 16px keeps iOS Safari from zooming the page on focus */
+    input[type=password],input[type=text],input[type=number],.inp{font-size:16px}
+    input[type=password],input[type=text]{padding:14px 66px 14px 14px}
+    .peek{width:60px;font-size:10.5px}
+
+    .tables{gap:24px}
+    .bucket-col{min-width:0;width:100%}
+    .topwrap{flex:1 1 100%}
+    .rankhead{gap:10px}
+    .ranktable{max-height:360px;padding:0 10px}
+  }
+
+  @media (max-width:640px){
+    /* smaller gutters, and the hard shadows shrink so nothing is pushed sideways */
+    :root{--shadow:4px 4px 0 var(--ink)}
+    .wrap{padding:0 14px}
+    .card{padding:22px 20px 22px 18px}
+    .card::after{width:4px}
+    .addbar{box-shadow:4px 4px 0 var(--blue);margin-bottom:34px}
+    .btn-primary{box-shadow:3px 3px 0 var(--ink)}
+    .btn-primary:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+    .jcard{box-shadow:3px 3px 0 var(--ink)}
+    .mark{box-shadow:3px 3px 0 var(--red)}
+    .lock-tag{top:12px;right:14px}
+    .drop{min-height:150px;padding:22px 14px}
+    .p-name{font-size:23px}
+    /* the log scrolls sideways inside itself; long lines never widen the page */
+    .console{height:180px;font-size:11px;line-height:1.5;padding:10px 12px;overflow-x:auto}
+    .console div{white-space:pre;word-break:normal;overflow-wrap:normal}
+    .barmeta{font-size:10px;letter-spacing:0.08em}
+    .note,.help{font-size:14px}
+    .bubble{padding:12px 13px}
+    .foot-inner{padding:18px 14px 34px}
+  }
+
+  @media (max-width:520px){
+    /* location goes first rather than squashing fit / company / title */
+    .top th:nth-child(4),.top td:nth-child(4){display:none}
+    /* the ranked table gained POSTED at column 2: keep its title, drop its location */
+    .rankt th:nth-child(4),.rankt td:nth-child(4){display:table-cell}
+    .rankt th:nth-child(5),.rankt td:nth-child(5){display:none}
+    /* keep the day count, drop the FRESH tag text on tiny screens */
+    .tag-fresh{display:none}
+    .top th{font-size:9.5px;letter-spacing:0.12em;padding-right:10px}
+    .top td{padding:9px 10px 9px 0;font-size:13px}
+    .why{font-size:11.5px}
+    .kcol{flex:0 0 82vw}
+  }
+
+  /* ---- touch: no hover-only affordances, no sub-40px tap target ---- */
+  @media (hover:none){
+    .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+    .navlink{display:inline-flex;align-items:center;min-height:40px}
+    .gbtn{
+      min-height:40px;padding:8px 12px;display:inline-flex;align-items:center;
+      color:var(--ink);border-color:var(--grey);
+    }
+    .gbtn.gred{color:var(--red);border-color:#EBB6AC}
+    .gbtn[disabled]{color:var(--muted);border-color:var(--line)}
+    .gbtn.gdone{color:#1B7F4B;border-color:#1B7F4B}
+    /* card move / remove controls stay visible - never revealed on hover */
+    .jacts,.jconfirm{opacity:1;visibility:visible}
+    .jcard .gbtn{flex:0 0 auto}
+    .peek{min-height:40px}
+    .drop{border-color:var(--muted)}
+    .drop .d2{text-decoration:underline}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important;transition:none !important;scroll-behavior:auto !important}
+    .spinner{border-top-color:var(--blue);opacity:.85}
+    .kanban{scroll-snap-type:none !important}
+    .kcol{scroll-snap-align:none !important}
+    .navlinks,.kanban,.ranktable,.tscroll,.console{scroll-behavior:auto !important}
+    .bar span{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div class="wordmark">Resumify</div>
+    </div>
+    <div class="navlinks">
+      <a class="navlink active" href="#home" data-view="home">Home</a>
+      <a class="navlink" href="#">Profile</a>
+      <a class="navlink" href="#tracker" data-view="tracker">Tracker<span class="nav-badge hidden" id="navTrackerCount">00</span></a>
+      <a class="navlink" href="#">Matches<span class="soon">SOON</span></a>
+      <span class="vdiv" aria-hidden="true"></span>
+      <span class="chip-count" id="navCount">000 MATCHES</span>
+      <a class="navlink admin-only hidden" id="navAdmin" href="/admin">Admin</a>
+      <span class="who" id="navUser">Guest</span>
+      <a class="logout" href="#" id="navLogout">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap" id="top">
+
+  <section class="view" id="viewHome">
+  <header class="hero">
+    <p class="eyebrow">Resume in &middot; shortlist out</p>
+    <h1>Four steps between your resume and a ranked Excel file.</h1>
+    <p class="sub">Resumify reads your resume, builds a scoring profile from it, sweeps roughly 83 company job boards, verifies every link, and hands back a ranked spreadsheet. Work through the steps below in order.</p>
+    <div id="bootErr"></div>
+  </header>
+
+  <main class="steps">
+
+    <!-- ================= STEP 01 ================= -->
+    <section class="card step" id="step1" tabindex="-1">
+      <span class="lock-tag">Locked</span>
+      <p class="eyebrow">Step 01 &middot; First things first</p>
+      <div class="card-head">
+        <h2>Connect your API key</h2>
+        <span class="check" aria-hidden="true">&#10003;</span>
+        <span class="done-tag">Saved</span>
+      </div>
+      <p class="note">Paste a Gemini API key. It is tested against the live model before anything is written to disk, then stored locally in your <span class="mono-inline">.env</span> file.</p>
+      <div class="row">
+        <div class="field">
+          <input type="password" id="keyInput" autocomplete="off" spellcheck="false" aria-label="Gemini API key" placeholder="AQ.Ab8RN6... or AIza...">
+          <button type="button" class="peek" id="peekBtn" aria-label="Show or hide the key">Show</button>
+        </div>
+        <button type="button" class="btn btn-primary" id="testBtn">Test key</button>
+        <button type="button" class="btn btn-ghost hidden" id="saveBtn">Save key &#8594;</button>
+      </div>
+      <div class="status" id="keyStatus"><span class="spinner"></span><span>Checking key...</span></div>
+      <div id="keyOut"></div>
+    </section>
+
+    <!-- ================= STEP 02 ================= -->
+    <section class="card step locked" id="step2" tabindex="-1">
+      <span class="lock-tag">Locked</span>
+      <p class="eyebrow">Step 02 &middot; Who you are</p>
+      <div class="card-head">
+        <h2>Drop your resume</h2>
+        <span class="check" aria-hidden="true">&#10003;</span>
+        <span class="done-tag">Parsed</span>
+      </div>
+      <p class="note">Your resume becomes the scoring rubric &mdash; titles, skills, locations and the 0-100 fit scale the ranker uses.</p>
+      <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Drop your resume here or click to browse">
+        <span class="d1">Drag your resume here</span>
+        <span class="d2">or click to browse</span>
+        <span class="d3">PDF, DOCX or TXT</span>
+      </div>
+      <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx,.txt">
+      <div class="filename" id="fileName"></div>
+      <div class="status" id="resStatus"><span class="spinner"></span><span>Reading your resume...</span></div>
+      <div id="resOut"></div>
+      <div class="profile" id="profileBox">
+        <div class="attached" id="attachedBox" hidden>
+          <span class="att-lab">Attached</span>
+          <a class="att-name" id="attName" href="/api/resume/file" target="_blank" rel="noopener"
+             title="Open this resume in a new tab"></a>
+          <span class="att-meta" id="attMeta"></span>
+        </div>
+        <p class="p-name" id="pName"></p>
+        <p class="p-head" id="pHead"></p>
+        <p class="p-sum" id="pSum"></p>
+        <div class="chips" id="pChips"></div>
+      </div>
+    </section>
+
+    <!-- ================= STEP 03 ================= -->
+    <section class="card step locked" id="step3" tabindex="-1">
+      <span class="lock-tag">Locked</span>
+      <p class="eyebrow">Step 03 &middot; The long part</p>
+      <div class="card-head">
+        <h2>Find your jobs</h2>
+        <span class="check" aria-hidden="true">&#10003;</span>
+        <span class="done-tag">Complete</span>
+      </div>
+      <p class="note">One run takes 10 to 18 minutes and sweeps about 83 company job boards. Leave this tab open &mdash; the log below is live.</p>
+      <ul class="list">
+        <li><span class="b">&#9675;</span><span>Fetch every board, keep US roles inside your freshness window.</span></li>
+        <li><span class="b">&#9675;</span><span>Score against your profile, then verify each link still resolves.</span></li>
+        <li><span class="b">&#9675;</span><span>Re-rank the survivors with Gemini and write the Excel file.</span></li>
+      </ul>
+      <div class="row">
+        <button type="button" class="btn btn-primary btn-big" id="runBtn">Start the search &#8594;</button>
+      </div>
+      <div class="progress-wrap" id="progWrap">
+        <div class="bar"><span id="barFill"></span></div>
+        <div class="barmeta">
+          <span id="stageText">Starting...</span>
+          <span><span id="pctText">0%</span> &middot; <span id="elapsed">00:00</span></span>
+        </div>
+        <div class="console" id="console" aria-live="polite" aria-label="Live search log"><div class="ph">waiting for output...</div></div>
+      </div>
+      <div id="runOut"></div>
+    </section>
+
+    <!-- ================= STEP 04 ================= -->
+    <section class="card step locked" id="step4" tabindex="-1">
+      <span class="lock-tag">Locked</span>
+      <p class="eyebrow">Step 04 &middot; The payoff</p>
+      <div class="card-head">
+        <h2>Your Excel file</h2>
+        <button type="button" class="btn btn-ghost" id="histBtn">Run history &#8594;</button>
+      </div>
+
+      <div class="hist" id="histPanel" hidden>
+        <div class="histhead">
+          <p class="colhead">Run history<span id="histCount"></span></p>
+          <div class="fquick" id="histQuick">
+            <button type="button" data-days="0">Today</button>
+            <button type="button" data-days="7">7 days</button>
+            <button type="button" data-days="30">30 days</button>
+            <button type="button" data-days="" class="on">All</button>
+          </div>
+        </div>
+        <div class="histdates">
+          <label class="flab" for="hFrom">From</label>
+          <input type="date" class="inp" id="hFrom">
+          <label class="flab" for="hTo">To</label>
+          <input type="date" class="inp" id="hTo">
+          <button type="button" class="fclear" id="hApply">Apply</button>
+        </div>
+        <div id="histOut"></div>
+        <div class="daysroll" id="histDays"></div>
+        <div class="runlist" id="histRuns"></div>
+      </div>
+
+      <div class="result" id="resultBox">
+        <div class="totalbox">
+          <span class="bignum" id="totalNum">0</span>
+          <span class="totlab">roles found</span>
+        </div>
+        <div class="tables">
+          <div class="bucket-col">
+            <p class="colhead">Fit distribution</p>
+            <div class="tscroll"><table class="buckets"><tbody id="bucketBody"></tbody></table></div>
+          </div>
+          <div class="topwrap">
+            <p class="colhead">Top matches</p>
+            <div class="tscroll">
+              <table class="top">
+                <thead><tr><th>Fit</th><th>Company</th><th>Title</th><th>Location</th></tr></thead>
+                <tbody id="topBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rank" id="rankBox">
+        <div class="rankhead">
+          <p class="colhead">Every ranked match<span id="rankCount"></span></p>
+          <button type="button" class="btn btn-ghost" id="trackTop" disabled>Track top 20 &#8594;</button>
+        </div>
+        <div id="rankOut"></div>
+        <div class="fbar">
+          <input type="search" class="srch" id="fSearch" placeholder="Search company, title or location..." autocomplete="off">
+          <span class="fcount" id="fCount"></span>
+          <button type="button" class="fclear" id="fClear" disabled>Clear filters</button>
+        </div>
+        <div class="ranktable">
+          <table class="top rankt">
+            <thead><tr>
+              <th class="fth"><button type="button" class="fbtn" data-col="fit">Fit <span class="car">&#9662;</span></button></th>
+              <th class="fth"><button type="button" class="fbtn" data-col="posted">Posted <span class="car">&#9662;</span></button></th>
+              <th class="fth"><button type="button" class="fbtn" data-col="company">Company <span class="car">&#9662;</span></button></th>
+              <th class="fth"><button type="button" class="fbtn" data-col="title">Title <span class="car">&#9662;</span></button></th>
+              <th class="fth"><button type="button" class="fbtn" data-col="location">Location <span class="car">&#9662;</span></button></th>
+              <th>Track</th>
+            </tr></thead>
+            <tbody id="rankBody"><tr><td colspan="6" class="loc">Loading the ranked list...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="thresh">
+        <div class="threshrow">
+          <div>
+            <label class="flab" for="thVal">Minimum AI fit</label>
+            <input type="number" class="inp" id="thVal" min="0" max="100" step="1" inputmode="numeric" value="">
+          </div>
+          <div>
+            <label class="flab" for="fwVal">Fresh window (days)</label>
+            <input type="number" class="inp" id="fwVal" min="0" max="30" step="1" inputmode="numeric" value="">
+          </div>
+          <button type="button" class="btn btn-ghost" id="thSave">Save threshold</button>
+          <span class="thnote" id="thNote"></span>
+        </div>
+        <p class="help">Roles scoring below this number are kept off the &ldquo;Ready to Apply&rdquo; list. It applies to the next run, not to the spreadsheet you already have.</p>
+        <p class="help">Roles this recent get the FRESH tag and their own sheet in the Excel.</p>
+      </div>
+
+      <p class="xlmeta" id="xlMeta"></p>
+      <div class="row" style="margin-top:24px">
+        <a class="btn btn-primary btn-big" id="dlBtn" href="/api/download">Download Excel &#8595;</a>
+      </div>
+    </section>
+
+  </main>
+  </section>
+
+  <!-- ================= TRACKER VIEW ================= -->
+  <section class="view hidden" id="viewTracker" aria-label="Job tracker">
+    <header class="hero">
+      <p class="eyebrow">Applications</p>
+      <h1 class="trk-title">Job tracker</h1>
+      <p class="sub">Every application, logged by hand, moving left to right.</p>
+    </header>
+
+    <div class="card addbar">
+      <div class="addgrid">
+        <div>
+          <label class="flab" for="tkCompany">Company</label>
+          <input type="text" class="inp" id="tkCompany" autocomplete="off" spellcheck="false" placeholder="Stripe">
+        </div>
+        <div>
+          <label class="flab" for="tkRole">Role</label>
+          <input type="text" class="inp" id="tkRole" autocomplete="off" spellcheck="false" placeholder="Data Analyst">
+        </div>
+        <div>
+          <label class="flab" for="tkLink">Link (optional)</label>
+          <input type="text" class="inp" id="tkLink" autocomplete="off" spellcheck="false" placeholder="https://...">
+        </div>
+        <div>
+          <span class="flab" aria-hidden="true">&nbsp;</span>
+          <button type="button" class="btn btn-primary" id="tkAdd">+ Track</button>
+        </div>
+      </div>
+      <div class="status" id="tkStatus"><span class="spinner"></span><span>Saving...</span></div>
+      <div id="tkOut"></div>
+    </div>
+
+    <div class="kanban" id="kanban">
+      <div class="kcol" data-status="saved">
+        <p class="khead">Saved / <span id="cnt-saved">0</span></p>
+        <div class="krule" aria-hidden="true"></div>
+        <div class="kbody" id="col-saved"></div>
+      </div>
+      <div class="kcol" data-status="applied">
+        <p class="khead">Applied / <span id="cnt-applied">0</span></p>
+        <div class="krule" aria-hidden="true"></div>
+        <div class="kbody" id="col-applied"></div>
+      </div>
+      <div class="kcol" data-status="interview">
+        <p class="khead">Interview / <span id="cnt-interview">0</span></p>
+        <div class="krule" aria-hidden="true"></div>
+        <div class="kbody" id="col-interview"></div>
+      </div>
+      <div class="kcol" data-status="offer">
+        <p class="khead">Offer / <span id="cnt-offer">0</span></p>
+        <div class="krule" aria-hidden="true"></div>
+        <div class="kbody" id="col-offer"></div>
+      </div>
+      <div class="kcol" data-status="rejected">
+        <p class="khead">Rejected / <span id="cnt-rejected">0</span></p>
+        <div class="krule" aria-hidden="true"></div>
+        <div class="kbody" id="col-rejected"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="foot-inner">Resumify &middot; Typeset in LaTeX</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- helpers ---------------- */
+  function $(id){ return document.getElementById(id); }
+  var REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function escapeHtml(v){
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function bubble(host, kind, label, text){
+    if(!host) return;
+    host.innerHTML = '<div class="bubble' + (kind === 'err' ? ' err' : '') + '">' +
+      '<span class="blabel">' + escapeHtml(label) + '</span>' +
+      '<p>' + escapeHtml(text) + '</p></div>';
+  }
+  function clearBubble(host){ if(host){ host.innerHTML = ''; } }
+
+  function showStatus(el, on, text){
+    if(!el) return;
+    if(text){
+      var t = el.querySelector('span:last-child');
+      if(t) t.textContent = text;
+    }
+    if(on) el.classList.add('on'); else el.classList.remove('on');
+  }
+
+  function errText(e){
+    if(!e) return 'Something went wrong.';
+    var m = e.message || String(e);
+    if(e.name === 'TypeError' || /Failed to fetch|NetworkError|Load failed/i.test(m)){
+      return 'Could not reach the local server. Is the Resumify app still running?';
+    }
+    return m;
+  }
+
+  async function postJSON(url, body){
+    var r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    var data = null;
+    try { data = await r.json(); }
+    catch(e){ throw new Error('Server returned an unreadable response (HTTP ' + r.status + ').'); }
+    if(!r.ok && !(data && typeof data.ok !== 'undefined')){
+      throw new Error('Server error (HTTP ' + r.status + ').');
+    }
+    return data || {};
+  }
+
+  async function getJSON(url){
+    var r = await fetch(url, {headers: {'Accept': 'application/json'}});
+    var data = null;
+    try { data = await r.json(); }
+    catch(e){ throw new Error('Server returned an unreadable response (HTTP ' + r.status + ').'); }
+    if(!r.ok && !data){ throw new Error('Server error (HTTP ' + r.status + ').'); }
+    return data || {};
+  }
+
+  /* ---------------- step locking ---------------- */
+  function unlock(n, scroll){
+    var el = $('step' + n);
+    if(!el) return;
+    var was = el.classList.contains('locked');
+    el.classList.remove('locked');
+    if(scroll && was){
+      try { el.scrollIntoView({behavior: REDUCED ? 'auto' : 'smooth', block: 'start'}); }
+      catch(e){ el.scrollIntoView(); }
+    }
+  }
+  function markDone(n){
+    var el = $('step' + n);
+    if(el) el.classList.add('done');
+  }
+
+  /* ---------------- STEP 01 : key ---------------- */
+  var keyInput = $('keyInput'), testBtn = $('testBtn'), saveBtn = $('saveBtn'),
+      peekBtn = $('peekBtn'), keyStatus = $('keyStatus'), keyOut = $('keyOut');
+
+  peekBtn.addEventListener('click', function(){
+    var showing = keyInput.type === 'text';
+    keyInput.type = showing ? 'password' : 'text';
+    peekBtn.textContent = showing ? 'Show' : 'Hide';
+  });
+
+  testBtn.addEventListener('click', async function(){
+    var key = (keyInput.value || '').trim();
+    clearBubble(keyOut);
+    saveBtn.classList.add('hidden');
+    if(!key){
+      bubble(keyOut, 'err', 'No key', 'Paste your Gemini API key first.');
+      return;
+    }
+    testBtn.disabled = true;
+    showStatus(keyStatus, true, 'Checking key...');
+    try{
+      var data = await postJSON('/api/key/test', {key: key});
+      if(data.ok){
+        bubble(keyOut, 'ok', 'Gemini says', data.reply || '(the model replied with an empty message)');
+        saveBtn.classList.remove('hidden');
+      } else {
+        bubble(keyOut, 'err', 'Key rejected', data.error || 'The key did not work.');
+      }
+    } catch(e){
+      bubble(keyOut, 'err', 'Request failed', errText(e));
+    } finally {
+      showStatus(keyStatus, false);
+      testBtn.disabled = false;
+    }
+  });
+
+  saveBtn.addEventListener('click', async function(){
+    var key = (keyInput.value || '').trim();
+    if(!key){ bubble(keyOut, 'err', 'No key', 'The key field is empty.'); return; }
+    saveBtn.disabled = true;
+    testBtn.disabled = true;
+    showStatus(keyStatus, true, 'Saving key...');
+    try{
+      var data = await postJSON('/api/key/save', {key: key});
+      if(data.ok){
+        bubble(keyOut, 'ok', 'Saved', 'The key is written to your .env file. Step 02 is now open.');
+        saveBtn.classList.add('hidden');
+        markDone(1);
+        unlock(2, true);
+      } else {
+        bubble(keyOut, 'err', 'Could not save', data.error || 'The key was not saved.');
+        saveBtn.disabled = false;
+      }
+    } catch(e){
+      bubble(keyOut, 'err', 'Request failed', errText(e));
+      saveBtn.disabled = false;
+    } finally {
+      showStatus(keyStatus, false);
+      testBtn.disabled = false;
+    }
+  });
+
+  /* ---------------- STEP 02 : resume ---------------- */
+  var dropZone = $('dropZone'), fileInput = $('fileInput'), fileName = $('fileName'),
+      resStatus = $('resStatus'), resOut = $('resOut'), profileBox = $('profileBox');
+
+  dropZone.addEventListener('click', function(){ fileInput.click(); });
+  dropZone.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); }
+  });
+  ['dragenter', 'dragover'].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){
+      e.preventDefault(); e.stopPropagation();
+      dropZone.classList.add('over');
+    });
+  });
+  ['dragleave', 'dragend'].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){
+      e.preventDefault(); e.stopPropagation();
+      dropZone.classList.remove('over');
+    });
+  });
+  dropZone.addEventListener('drop', function(e){
+    e.preventDefault(); e.stopPropagation();
+    dropZone.classList.remove('over');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) sendResume(f);
+  });
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if(f) sendResume(f);
+    fileInput.value = '';
+  });
+  window.addEventListener('dragover', function(e){ e.preventDefault(); });
+  window.addEventListener('drop', function(e){ e.preventDefault(); });
+
+  function prettySize(n){
+    if(typeof n !== 'number') return '';
+    if(n < 1024) return n + ' B';
+    if(n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(2) + ' MB';
+  }
+
+  async function sendResume(file){
+    clearBubble(resOut);
+    var name = file.name || 'resume';
+    var dot = name.lastIndexOf('.');
+    var ext = dot > -1 ? name.slice(dot).toLowerCase() : '';
+    fileName.textContent = name + '  ·  ' + prettySize(file.size);
+    fileName.classList.add('on');
+    if(['.pdf', '.docx', '.txt'].indexOf(ext) === -1){
+      bubble(resOut, 'err', 'Wrong file type', 'Resumify reads PDF, DOCX or TXT files. Drop another file.');
+      return;
+    }
+    showStatus(resStatus, true, 'Reading your resume...');
+    dropZone.style.pointerEvents = 'none';
+    try{
+      var fd = new FormData();
+      fd.append('resume', file, name);
+      var r = await fetch('/api/resume', {method: 'POST', body: fd});
+      var data = null;
+      try { data = await r.json(); }
+      catch(e){ throw new Error('Server returned an unreadable response (HTTP ' + r.status + ').'); }
+      if(data && data.ok && data.profile){
+        renderProfile(data.profile);
+        markDone(2);
+        unlock(3, true);
+      } else {
+        bubble(resOut, 'err', 'Could not read that', (data && data.error) || 'The resume could not be parsed. Try another file.');
+      }
+    } catch(e){
+      bubble(resOut, 'err', 'Upload failed', errText(e));
+    } finally {
+      showStatus(resStatus, false);
+      dropZone.style.pointerEvents = '';
+    }
+  }
+
+  function renderProfile(p){
+    if(!p) return;
+    $('pName').textContent = p.name || 'Your profile';
+    $('pHead').textContent = p.headline || '';
+    $('pSum').textContent = p.summary || '';
+    var skills = Array.isArray(p.skills) ? p.skills.slice(0, 28) : [];
+    var locs = Array.isArray(p.locations) ? p.locations.slice(0, 8) : [];
+    var html = skills.map(function(s){
+      return '<span class="chip">' + escapeHtml(s) + '</span>';
+    }).join('') + locs.map(function(s){
+      return '<span class="chip loc">' + escapeHtml(s) + '</span>';
+    }).join('');
+    $('pChips').innerHTML = html;
+
+    /* Which file is currently driving the ranking. It stays attached until the
+       next upload replaces it, so this must survive a reload, not just show up
+       right after an upload. */
+    var box = $('attachedBox');
+    if(box){
+      if(p.resume_file){
+        $('attName').textContent = p.resume_file;
+        var bits = [];
+        if(p.resume_size) bits.push(fmtBytes(p.resume_size));
+        if(p.resume_uploaded_at) bits.push('added ' + p.resume_uploaded_at);
+        $('attMeta').textContent = bits.join('  ·  ');
+        box.hidden = false;
+      } else {
+        box.hidden = true;
+      }
+    }
+    profileBox.classList.add('on');
+    if(p.name) $('navUser').textContent = p.name;
+  }
+
+  function fmtBytes(n){
+    n = Number(n) || 0;
+    if(n < 1024) return n + ' B';
+    if(n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  /* ---------------- RUN HISTORY ---------------- */
+  var histPanel = $('histPanel'), histRuns = $('histRuns'), histDays = $('histDays'),
+      histOut = $('histOut'), histBtn = $('histBtn');
+  var histLoaded = false;
+
+  var BUCKETS = [
+    {k:'90-100', c:'b90', l:'90+'},
+    {k:'75-89',  c:'b75', l:'75-89'},
+    {k:'55-74',  c:'b55', l:'55-74'},
+    {k:'30-54',  c:'b30', l:'30-54'},
+    {k:'0-29',   c:'b0',  l:'0-29'},
+    {k:'unscored', c:'bun', l:'unscored'}
+  ];
+
+  function distBar(buckets){
+    if(!buckets || typeof buckets !== 'object') return '';
+    var total = 0;
+    BUCKETS.forEach(function(b){ total += Number(buckets[b.k]) || 0; });
+    if(!total) return '';
+    var bar = BUCKETS.map(function(b){
+      var n = Number(buckets[b.k]) || 0;
+      if(!n) return '';
+      return '<i class="' + b.c + '" style="width:' + ((n / total) * 100).toFixed(2) +
+             '%" title="' + escapeHtml(b.l + ': ' + n) + '"></i>';
+    }).join('');
+    var key = BUCKETS.filter(function(b){ return Number(buckets[b.k]) > 0; })
+      .map(function(b){
+        return '<span><i class="' + b.c + '"></i>' + escapeHtml(b.l) + ' ' +
+               escapeHtml(String(buckets[b.k])) + '</span>';
+      }).join('');
+    return '<div class="distbar">' + bar + '</div><div class="distkey">' + key + '</div>';
+  }
+
+  function renderHistory(d){
+    var runs = (d && Array.isArray(d.runs)) ? d.runs : [];
+    var days = (d && Array.isArray(d.days)) ? d.days : [];
+    var today = (d && d.today) || '';
+    var cnt = $('histCount');
+    if(cnt) cnt.textContent = runs.length
+      ? '  ·  ' + runs.length + (runs.length === 1 ? ' run' : ' runs')
+      : '';
+
+    if(histDays){
+      histDays.innerHTML = days.map(function(x){
+        var isToday = x.date === today;
+        return '<div class="dcard' + (isToday ? ' today' : '') + '">' +
+          '<div class="dd">' + escapeHtml(isToday ? 'TODAY' : x.date) + '</div>' +
+          '<div class="dn">' + escapeHtml(String(x.best_ready)) + '</div>' +
+          '<div class="dl">roles &middot; ' + escapeHtml(String(x.runs)) +
+            (x.runs === 1 ? ' run' : ' runs') + '</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    if(!histRuns) return;
+    if(!runs.length){
+      histRuns.innerHTML = '<p class="nohist">No runs in this window. ' +
+        'Every completed search is logged here from now on.</p>';
+      return;
+    }
+    histRuns.innerHTML = runs.map(function(r){
+      var isToday = r.date === today;
+      var mins = (typeof r.duration_sec === 'number' && r.duration_sec > 0)
+        ? Math.max(1, Math.round(r.duration_sec / 60)) + ' min' : '';
+      var tags = '';
+      if(isToday) tags += '<span class="rtag new">TODAY</span>';
+      if(r.incomplete) tags += '<span class="rtag warn" title="a source failed - counts are lower than a full sweep">INCOMPLETE</span>';
+      if(r.backfilled) tags += '<span class="rtag est" title="reconstructed from the log before history tracking existed">FROM LOG</span>';
+      var stats =
+        '<span class="rstat"><b>' + escapeHtml(String(r.new || 0)) + '</b> new</span>' +
+        '<span class="rstat"><b>' + escapeHtml(String(r.total || 0)) + '</b> scanned</span>' +
+        '<span class="rstat"><b>' + escapeHtml(String(r.lowfit || 0)) + '</b> below cut</span>' +
+        '<span class="rstat">cut at <b>' + escapeHtml(String(r.threshold)) + '</b></span>' +
+        (r.sources_total ? '<span class="rstat"><b>' + escapeHtml(String(r.sources_ok)) +
+          '</b>/' + escapeHtml(String(r.sources_total)) + ' sources</span>' : '') +
+        (mins ? '<span class="rstat">' + escapeHtml(mins) + '</span>' : '');
+      return '<div class="rcard' + (isToday ? ' today' : '') + '">' +
+        '<div class="rtop">' +
+          '<span class="rbig">' + escapeHtml(String(r.ready || 0)) + '</span>' +
+          '<span class="rlab">roles ready</span>' +
+          '<span class="rwhen">' + escapeHtml(r.date + '  ' + (r.time || '')) + '</span>' +
+          tags +
+        '</div>' +
+        '<div class="rstats">' + stats + '</div>' +
+        distBar(r.buckets) +
+        '</div>';
+    }).join('');
+  }
+
+  async function loadHistory(qs){
+    if(!histRuns) return;
+    clearBubble(histOut);
+    histRuns.innerHTML = '<p class="nohist">Loading...</p>';
+    try{
+      var d = await getJSON('/api/history' + (qs || ''));
+      if(d && d.ok){ histLoaded = true; renderHistory(d); }
+      else {
+        histRuns.innerHTML = '';
+        bubble(histOut, 'err', 'Could not load history', (d && d.error) || 'No history yet.');
+      }
+    } catch(e){
+      histRuns.innerHTML = '';
+      bubble(histOut, 'err', 'Request failed', errText(e));
+    }
+  }
+
+  function histQuery(){
+    var f = $('hFrom'), t = $('hTo');
+    var parts = [];
+    if(f && f.value) parts.push('from=' + encodeURIComponent(f.value));
+    if(t && t.value) parts.push('to=' + encodeURIComponent(t.value));
+    return parts.length ? '?' + parts.join('&') : '';
+  }
+
+  if(histBtn && histPanel){
+    histBtn.addEventListener('click', function(){
+      var open = !histPanel.hidden;
+      histPanel.hidden = open;
+      histBtn.innerHTML = open ? 'Run history &#8594;' : 'Hide history';
+      if(!open){
+        if(!histLoaded) loadHistory('');
+        try{ histPanel.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(_e){}
+      }
+    });
+  }
+  var hq = $('histQuick');
+  if(hq){
+    hq.addEventListener('click', function(e){
+      var b = e.target && e.target.closest ? e.target.closest('button[data-days]') : null;
+      if(!b) return;
+      hq.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      var f = $('hFrom'), t = $('hTo');
+      if(f) f.value = ''; if(t) t.value = '';
+      var d = b.getAttribute('data-days');
+      loadHistory(d === '' ? '' : '?days=' + encodeURIComponent(d));
+    });
+  }
+  var hApply = $('hApply');
+  if(hApply){
+    hApply.addEventListener('click', function(){
+      var q = histQuery();
+      if(hq) hq.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      loadHistory(q);
+    });
+  }
+  /* a finished run makes the open panel stale - refresh it in place */
+  function refreshHistory(){ if(histLoaded && histPanel && !histPanel.hidden) loadHistory(histQuery()); }
+
+  /* ---------------- STEP 03 : run + poll ---------------- */
+  var runBtn = $('runBtn'), progWrap = $('progWrap'), barFill = $('barFill'),
+      stageText = $('stageText'), pctText = $('pctText'), elapsedEl = $('elapsed'),
+      consoleEl = $('console'), runOut = $('runOut');
+
+  var since = 0, pollTimer = null, tickTimer = null, startedAt = 0, logCleared = false;
+  var pollGen = 0, pollFails = 0, idleTicks = 0;
+  var extRunOn = false;
+
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+  function stopClock(){ if(tickTimer){ clearInterval(tickTimer); tickTimer = null; } }
+  function startClock(){
+    stopClock();
+    startedAt = Date.now();
+    elapsedEl.textContent = '00:00';
+    tickTimer = setInterval(function(){
+      var s = Math.floor((Date.now() - startedAt) / 1000);
+      elapsedEl.textContent = pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+    }, 1000);
+  }
+  function stopPolling(){
+    pollGen++;
+    if(pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
+  }
+
+  function appendLines(lines){
+    if(!lines || !lines.length) return;
+    if(!logCleared){ consoleEl.innerHTML = ''; logCleared = true; }
+    var stick = (consoleEl.scrollTop + consoleEl.clientHeight) >= (consoleEl.scrollHeight - 40);
+    var frag = document.createDocumentFragment();
+    for(var i = 0; i < lines.length; i++){
+      var d = document.createElement('div');
+      d.textContent = String(lines[i]);
+      frag.appendChild(d);
+    }
+    consoleEl.appendChild(frag);
+    while(consoleEl.childElementCount > 400 && consoleEl.firstElementChild){
+      consoleEl.removeChild(consoleEl.firstElementChild);
+    }
+    if(stick) consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function setPct(p){
+    var v = Math.max(0, Math.min(100, Math.round(Number(p) || 0)));
+    barFill.style.width = v + '%';
+    pctText.textContent = v + '%';
+  }
+
+  runBtn.addEventListener('click', async function(){
+    if(extRunOn) return;
+    clearBubble(runOut);
+    runBtn.disabled = true;
+    try{
+      var st = await getJSON('/api/state');
+      if(st && st.external_run){ applyExternalRun(true); return; }
+    } catch(e){ /* if state is unreachable the run attempt below reports it */ }
+    progWrap.classList.add('on');
+    consoleEl.innerHTML = '<div class="ph">starting...</div>';
+    logCleared = false;
+    since = 0;
+    setPct(0);
+    stageText.textContent = 'Starting...';
+    startClock();
+    try{
+      var data = await postJSON('/api/run', {});
+      var msg = data.error || '';
+      /* "already running elsewhere (PID n)" is an EXTERNAL run - polling
+         /api/progress for it would idle out into a bogus "Search stopped"
+         error, so it goes down the frozen-button path instead. Only the
+         same-server "already running" duplicate-start joins the live poll. */
+      if(data.ok || (/already running/i.test(msg) && !/elsewhere/i.test(msg))){
+        beginPolling(false);
+      } else if(/elsewhere/i.test(msg)){
+        stopClock();
+        progWrap.classList.remove('on');
+        applyExternalRun(true);
+      } else {
+        stopClock();
+        progWrap.classList.remove('on');
+        runBtn.disabled = false;
+        bubble(runOut, 'err', 'Could not start', msg || 'The search did not start.');
+      }
+    } catch(e){
+      stopClock();
+      progWrap.classList.remove('on');
+      runBtn.disabled = false;
+      bubble(runOut, 'err', 'Request failed', errText(e));
+    }
+  });
+
+  function beginPolling(resumed){
+    stopPolling();
+    pollFails = 0;
+    idleTicks = 0;
+    runBtn.disabled = true;
+    progWrap.classList.add('on');
+    if(!tickTimer) startClock();
+    if(resumed){
+      since = 0;
+      logCleared = false;
+      consoleEl.innerHTML = '<div class="ph">reattaching to the run in progress...</div>';
+    }
+    poll(pollGen);
+  }
+
+  function failRun(msg){
+    stopPolling();
+    stopClock();
+    runOut.innerHTML = '<div class="bubble err"><span class="blabel">Search failed</span>' +
+      '<p>' + escapeHtml(msg) + '</p>' +
+      '<button type="button" class="btn btn-ghost" id="retryBtn" style="margin-top:14px">Try again</button></div>';
+    var rb = $('retryBtn');
+    if(rb){
+      rb.addEventListener('click', function(){
+        clearBubble(runOut);
+        runBtn.disabled = false;
+        try { runBtn.focus(); } catch(e){}
+      });
+    }
+  }
+
+  /* a run started from another window or the CLI: freeze the start button.
+     While frozen, /api/state is re-checked on a timer - without it the button
+     (and the stale results below) stay dead forever after that run finishes,
+     because nothing else on the page ever asks the server again. */
+  var extTimer = null;
+  function applyExternalRun(on){
+    on = !!on;
+    if(on){
+      extRunOn = true;
+      runBtn.disabled = true;
+      if(!$('extRunMsg')){
+        runOut.innerHTML = '<div class="bubble" id="extRunMsg"><span class="blabel">Already running</span>' +
+          '<p>A search is already running from another window or the command line</p></div>';
+      }
+      if(!extTimer){
+        extTimer = setInterval(function(){
+          getJSON('/api/state').then(function(s){
+            if(!s || s.external_run) return;      // still going - keep waiting
+            applyExternalRun(false);
+            if(s.has_excel){ unlock(4, false); renderExcelMeta(s.excel); }
+            loadResults();
+            refreshHistory();
+          }).catch(function(){ /* transient - the timer tries again */ });
+        }, 8000);
+      }
+    } else {
+      if(extTimer){ clearInterval(extTimer); extTimer = null; }
+      if(extRunOn){
+        extRunOn = false;
+        if($('extRunMsg')) clearBubble(runOut);
+        if(!pollTimer) runBtn.disabled = false;
+      }
+    }
+  }
+
+  function refreshExcelMeta(){
+    try{
+      getJSON('/api/state').then(function(s){
+        if(s) applyExternalRun(!!s.external_run);
+        if(s && s.excel) renderExcelMeta(s.excel);
+      }).catch(function(){});
+    } catch(e){}
+  }
+
+  async function poll(gen){
+    var data;
+    try{
+      data = await getJSON('/api/progress?since=' + encodeURIComponent(since));
+    } catch(e){
+      if(gen !== pollGen) return;               // this loop was superseded
+      pollFails++;
+      if(pollFails >= 6){ failRun(errText(e)); return; }
+      // a single hiccup during a 10-18 minute run must not kill the page
+      pollTimer = setTimeout(function(){ poll(gen); }, Math.min(8000, 1500 * pollFails));
+      return;
+    }
+    if(gen !== pollGen) return;                 // this loop was superseded
+    pollFails = 0;
+    try{
+      appendLines(data.lines || []);
+      if(typeof data.next === 'number' && data.next >= 0){
+        if(data.next < since){                  // server log was reset under us
+          since = 0;
+          logCleared = false;
+        } else {
+          since = data.next;
+        }
+      }
+      if(typeof data.pct !== 'undefined' && data.pct !== null) setPct(data.pct);
+      if(data.stage) stageText.textContent = String(data.stage);
+
+      if(data.error){
+        failRun(String(data.error));
+        return;
+      }
+      if(data.done){
+        stopPolling();
+        stopClock();
+        setPct(100);
+        stageText.textContent = 'Done';
+        runBtn.disabled = false;
+        markDone(3);
+        if(data.result) renderResult(data.result);
+        unlock(4, true);
+        refreshExcelMeta();
+        loadResults();
+        refreshHistory();          /* the run just logged a new history entry */
+        return;
+      }
+      if(data.running === false){
+        // not running and not done: the server was restarted or never started.
+        idleTicks++;
+        if(idleTicks >= 4){
+          stopPolling();
+          stopClock();
+          runBtn.disabled = false;
+          bubble(runOut, 'err', 'Search stopped',
+                 'The server is no longer running a search - it may have been restarted. Start the search again.');
+          return;
+        }
+      } else {
+        idleTicks = 0;
+      }
+      pollTimer = setTimeout(function(){ poll(gen); }, 1500);
+    } catch(e){
+      failRun(errText(e));
+    }
+  }
+
+  /* ---------------- STEP 04 : results ---------------- */
+  var BUCKETS = ['90-100', '75-89', '55-74', '30-54', '0-29'];
+
+  function fitClass(v){
+    var n = parseInt(String(v).replace(/[^0-9-]/g, ''), 10);
+    if(isNaN(n)) return '';
+    if(n >= 75) return ' hi';
+    if(n >= 55) return ' mid';
+    return '';
+  }
+
+  function renderResult(res){
+    if(!res) return;
+    var total = (typeof res.total === 'number') ? res.total : (parseInt(res.total, 10) || 0);
+    $('totalNum').textContent = String(total);
+    $('navCount').textContent = String(total) + ' MATCHES';
+
+    var b = res.buckets || {};
+    $('bucketBody').innerHTML = BUCKETS.map(function(k){
+      var v = (typeof b[k] === 'undefined') ? 0 : b[k];
+      return '<tr><td>' + escapeHtml(k) + '</td><td>' + escapeHtml(v) + '</td></tr>';
+    }).join('');
+
+    var top = Array.isArray(res.top) ? res.top.slice(0, 10) : [];
+    if(top.length){
+      $('topBody').innerHTML = top.map(function(j){
+        j = j || {};
+        var why = j.why ? '<span class="why">' + escapeHtml(j.why) + '</span>' : '';
+        return '<tr>' +
+          '<td class="fit"><span class="dot' + fitClass(j.fit) + '"></span>' + escapeHtml(j.fit) + '</td>' +
+          '<td class="co">' + escapeHtml(j.company) + '</td>' +
+          '<td>' + escapeHtml(j.title) + why + '</td>' +
+          '<td class="loc">' + escapeHtml(j.location) + '</td>' +
+          '</tr>';
+      }).join('');
+    } else {
+      $('topBody').innerHTML = '<tr><td colspan="4" class="loc">No ranked rows came back. Open the Excel file for the full list.</td></tr>';
+    }
+    $('resultBox').classList.add('on');
+  }
+
+  function renderExcelMeta(x){
+    if(!x) return;
+    var bits = [];
+    if(x.filename) bits.push(String(x.filename));
+    if(typeof x.rows !== 'undefined' && x.rows !== null) bits.push(x.rows + ' rows');
+    if(x.modified) bits.push('written ' + x.modified);
+    $('xlMeta').textContent = bits.join('  ·  ');
+    if(typeof x.rows !== 'undefined' && x.rows !== null && !$('resultBox').classList.contains('on')){
+      $('totalNum').textContent = String(x.rows);
+      $('navCount').textContent = String(x.rows) + ' MATCHES';
+      $('bucketBody').innerHTML = BUCKETS.map(function(k){
+        return '<tr><td>' + escapeHtml(k) + '</td><td>&ndash;</td></tr>';
+      }).join('');
+      $('topBody').innerHTML = '<tr><td colspan="4" class="loc">From an earlier run. Download the file below, or start a fresh search above.</td></tr>';
+      $('resultBox').classList.add('on');
+    }
+  }
+
+  /* step 4's download link is still keyboard-reachable while the card is
+     locked (pointer-events:none only stops the mouse), and hitting it with
+     no spreadsheet yet dumps a raw JSON 404 into the tab. */
+  var dlBtn = $('dlBtn');
+  if(dlBtn){
+    dlBtn.addEventListener('click', function(e){
+      var s4 = $('step4');
+      if(s4 && s4.classList.contains('locked')) e.preventDefault();
+    });
+  }
+
+  /* ---------------- NAV ROUTING ---------------- */
+  var viewHome = $('viewHome'), viewTracker = $('viewTracker');
+
+  function hashView(){
+    var h = String(location.hash || '').replace(/^#/, '').toLowerCase();
+    return h === 'tracker' ? 'tracker' : 'home';
+  }
+
+  function showView(name){
+    var v = (name === 'tracker') ? 'tracker' : 'home';
+    if(viewHome) viewHome.classList.toggle('hidden', v !== 'home');
+    if(viewTracker) viewTracker.classList.toggle('hidden', v !== 'tracker');
+    var links = document.querySelectorAll('.navlink[data-view]');
+    for(var i = 0; i < links.length; i++){
+      links[i].classList.toggle('active', links[i].getAttribute('data-view') === v);
+    }
+    if(v === 'tracker' && !trackerLoaded) loadTracker();
+  }
+
+  window.addEventListener('hashchange', function(){ showView(hashView()); });
+
+  /* "Profile", "Matches" and "Logout" are href="#" placeholders. Without this,
+     clicking one while the tracker is open blanks the hash and silently throws
+     the user back to Home. */
+  document.addEventListener('click', function(e){
+    var a = e.target && e.target.closest ? e.target.closest('a[href="#"]') : null;
+    if(a) e.preventDefault();
+  });
+
+  /* ---------------- account ---------------- */
+  var meUser = null;
+
+  function ping(type, detail){
+    /* Fire-and-forget: analytics must never block or break the click it
+       is recording, so failures are swallowed on purpose. */
+    try{
+      fetch('/api/activity', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({type:type, detail:detail || null})
+      }).catch(function(){});
+    } catch(_e){}
+  }
+
+  getJSON('/api/me').then(function(d){
+    if(!d || !d.user) return;
+    meUser = d.user;
+    var n = $('navUser');
+    if(n) n.textContent = meUser.name || meUser.email || 'You';
+    if(meUser.is_admin){
+      var a = $('navAdmin');
+      if(a) a.classList.remove('hidden');
+    }
+    ping('open_app');
+  }).catch(function(){ /* auth off, or offline - the app still works */ });
+
+  var lo = $('navLogout');
+  if(lo){
+    lo.addEventListener('click', async function(e){
+      e.preventDefault();
+      try{ await fetch('/api/auth/logout', {method:'POST', credentials:'same-origin'}); }catch(_e){}
+      location.href = '/login';
+    });
+  }
+
+  /* Opening a real job link is the signal that matters most - record it, then
+     let the browser follow the link normally. */
+  document.addEventListener('click', function(e){
+    var a = e.target && e.target.closest ? e.target.closest('a[target="_blank"]') : null;
+    if(!a) return;
+    var href = a.getAttribute('href') || '';
+    if(!/^https?:\/\//i.test(href)) return;
+    var row = a.closest ? a.closest('tr') : null;
+    var company = '';
+    if(row){
+      var c = row.querySelector('.co');
+      if(c) company = c.textContent || '';
+    }
+    ping('apply_click', {url: href.slice(0,200), company: company.slice(0,80),
+                         title: (a.textContent || '').slice(0,120)});
+  }, true);
+
+  function setBadge(n){
+    var el = $('navTrackerCount');
+    if(!el) return;
+    n = Number(n) || 0;
+    el.textContent = n < 100 ? ('0' + n).slice(-2) : String(n);
+    el.classList.toggle('hidden', n <= 0);
+  }
+
+  async function refreshBadge(){
+    try{
+      var s = await getJSON('/api/state');
+      if(s) applyExternalRun(!!s.external_run);
+      if(s && typeof s.tracker_count !== 'undefined') setBadge(s.tracker_count);
+    } catch(e){ /* the badge is decoration - never break the page over it */ }
+  }
+
+  /* ---------------- TRACKER ---------------- */
+  var ORDER = ['saved', 'applied', 'interview', 'offer', 'rejected'];
+  var tkItems = [], trackerLoaded = false, tkBusy = false;
+  var tkOut = $('tkOut'), tkStatus = $('tkStatus');
+
+  function safeUrl(u){
+    var s = String(u === null || u === undefined ? '' : u).trim();
+    return /^https?:\/\//i.test(s) ? s : '';
+  }
+  function hasFit(v){
+    return v !== null && typeof v !== 'undefined' && String(v).trim() !== '';
+  }
+  function snapshot(){
+    return tkItems.map(function(o){
+      var c = {}, k;
+      for(k in o){ if(Object.prototype.hasOwnProperty.call(o, k)) c[k] = o[k]; }
+      return c;
+    });
+  }
+  function indexOfId(id){
+    for(var i = 0; i < tkItems.length; i++){
+      if(tkItems[i] && String(tkItems[i].id) === String(id)) return i;
+    }
+    return -1;
+  }
+
+  function cardHtml(it, col){
+    it = it || {};
+    var name = escapeHtml(it.company || '(no company)');
+    var url = safeUrl(it.link);
+    var co = url
+      ? '<a class="jco" href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + name + '</a>'
+      : '<span class="jco">' + name + '</span>';
+    var fit = hasFit(it.fit)
+      ? '<span class="fitchip' + fitClass(it.fit) + '">' + escapeHtml(it.fit) + '</span>' : '';
+    var loc = it.location ? '<div class="jloc">' + escapeHtml(it.location) + '</div>' : '';
+    var note = it.note ? '<div class="jloc">' + escapeHtml(it.note) + '</div>' : '';
+    var date = it.added ? '<div class="jdate">Added ' + escapeHtml(it.added) + '</div>' : '';
+
+    var acts = '';
+    if(col > 0) acts += '<button type="button" class="gbtn" data-act="prev" aria-label="Move left">&lt;</button>';
+    if(col < ORDER.length - 1) acts += '<button type="button" class="gbtn" data-act="next" aria-label="Move right">&gt;</button>';
+    acts += '<button type="button" class="gbtn gred" data-act="ask">Remove</button>';
+
+    return '<article class="jcard" data-id="' + escapeHtml(it.id) + '">' +
+      '<div class="jtop">' + co + fit + '</div>' +
+      '<div class="jrole">' + escapeHtml(it.role || '') + '</div>' +
+      loc + note + date +
+      '<div class="jacts">' + acts + '</div>' +
+      '<div class="jconfirm hidden">' +
+        '<span class="cq">Remove?</span>' +
+        '<button type="button" class="gbtn gred" data-act="yes">Yes</button>' +
+        '<button type="button" class="gbtn" data-act="no">No</button>' +
+      '</div></article>';
+  }
+
+  function renderTracker(){
+    var by = {saved: [], applied: [], interview: [], offer: [], rejected: []};
+    tkItems.forEach(function(it){
+      /* ORDER.indexOf, not by[it.status]: a status of "constructor" or
+         "toString" resolves off Object.prototype, and by[s].push would then
+         throw and blank the whole board. */
+      var s = (it && ORDER.indexOf(it.status) > -1) ? it.status : 'saved';
+      by[s].push(it);
+    });
+    ORDER.forEach(function(s, i){
+      var c = $('cnt-' + s), host = $('col-' + s);
+      if(c) c.textContent = String(by[s].length);
+      if(!host) return;
+      host.innerHTML = by[s].length
+        ? by[s].map(function(it){ return cardHtml(it, i); }).join('')
+        : '<div class="kempty">Empty</div>';
+    });
+    setBadge(tkItems.length);
+  }
+
+  async function loadTracker(){
+    try{
+      var d = await getJSON('/api/tracker');
+      if(d && d.ok){
+        tkItems = Array.isArray(d.items) ? d.items : [];
+        trackerLoaded = true;
+        renderTracker();
+      } else {
+        bubble(tkOut, 'err', 'Could not load the tracker', (d && d.error) || 'The tracker did not load.');
+      }
+    } catch(e){
+      bubble(tkOut, 'err', 'Request failed', errText(e));
+    }
+  }
+
+  async function addTracked(){
+    if(tkBusy) return;
+    var company = ($('tkCompany').value || '').trim();
+    var role = ($('tkRole').value || '').trim();
+    var link = ($('tkLink').value || '').trim();
+    clearBubble(tkOut);
+    if(!company || !role){
+      bubble(tkOut, 'err', 'Missing details', 'A company and a role are both required.');
+      return;
+    }
+    tkBusy = true;
+    $('tkAdd').disabled = true;
+    showStatus(tkStatus, true, 'Saving...');
+    try{
+      /* No "status" key on purpose. The backend only overwrites an existing
+         card's status when one is sent, so adding a job that is already in
+         Interview or Offer would otherwise knock it back down to Saved. */
+      var d = await postJSON('/api/tracker', {company: company, role: role, link: link});
+      if(d && d.ok){
+        $('tkCompany').value = ''; $('tkRole').value = ''; $('tkLink').value = '';
+        if(d.item){
+          /* Replace by id, never blindly push: re-adding a tracked job returns
+             the row that already exists, and a push would put two cards with
+             the same data-id on the board until the reload lands. */
+          var at = indexOfId(d.item.id);
+          if(at > -1) tkItems[at] = d.item; else tkItems.push(d.item);
+          renderTracker();
+        }
+        await loadTracker();
+        try { $('tkCompany').focus(); } catch(e){}
+      } else {
+        bubble(tkOut, 'err', 'Could not add that', (d && d.error) || 'The role was not saved.');
+      }
+    } catch(e){
+      bubble(tkOut, 'err', 'Request failed', errText(e));
+    } finally {
+      showStatus(tkStatus, false);
+      $('tkAdd').disabled = false;
+      tkBusy = false;
+    }
+  }
+
+  async function moveItem(id, dir){
+    var i = indexOfId(id);
+    if(i < 0) return;
+    var cur = ORDER.indexOf(tkItems[i].status);
+    if(cur < 0) cur = 0;
+    var next = cur + dir;
+    if(next < 0 || next >= ORDER.length) return;
+    var before = snapshot();
+    tkItems[i].status = ORDER[next];
+    renderTracker();                                    /* optimistic */
+    try{
+      var d = await postJSON('/api/tracker/' + encodeURIComponent(id) + '/update', {status: ORDER[next]});
+      if(d && d.ok){
+        if(d.item){ var j = indexOfId(id); if(j > -1){ tkItems[j] = d.item; } }
+        clearBubble(tkOut);
+        renderTracker();
+        loadTracker();
+      } else {
+        tkItems = before; renderTracker();              /* revert */
+        bubble(tkOut, 'err', 'Could not move that card', (d && d.error) || 'It stayed where it was.');
+      }
+    } catch(e){
+      tkItems = before; renderTracker();
+      bubble(tkOut, 'err', 'Request failed', errText(e));
+    }
+  }
+
+  async function removeItem(id){
+    var i = indexOfId(id);
+    if(i < 0) return;
+    var before = snapshot();
+    tkItems.splice(i, 1);
+    renderTracker();                                    /* optimistic */
+    try{
+      var d = await postJSON('/api/tracker/' + encodeURIComponent(id) + '/delete', {});
+      if(d && d.ok){
+        clearBubble(tkOut);
+        loadTracker();
+      } else {
+        tkItems = before; renderTracker();              /* revert */
+        bubble(tkOut, 'err', 'Could not remove that card', (d && d.error) || 'It is still in the tracker.');
+      }
+    } catch(e){
+      tkItems = before; renderTracker();
+      bubble(tkOut, 'err', 'Request failed', errText(e));
+    }
+  }
+
+  var kanban = $('kanban');
+  if(kanban){
+    kanban.addEventListener('click', function(e){
+      var b = e.target && e.target.closest ? e.target.closest('button[data-act]') : null;
+      if(!b || !kanban.contains(b)) return;
+      var card = b.closest('.jcard');
+      if(!card) return;
+      var id = card.getAttribute('data-id'), act = b.getAttribute('data-act');
+      var acts = card.querySelector('.jacts'), conf = card.querySelector('.jconfirm');
+      if(act === 'ask'){
+        if(acts) acts.classList.add('hidden');
+        if(conf) conf.classList.remove('hidden');
+        return;
+      }
+      if(act === 'no'){
+        if(conf) conf.classList.add('hidden');
+        if(acts) acts.classList.remove('hidden');
+        return;
+      }
+      if(act === 'yes'){ removeItem(id); return; }
+      if(act === 'prev'){ moveItem(id, -1); return; }
+      if(act === 'next'){ moveItem(id, 1); }
+    });
+  }
+
+  $('tkAdd').addEventListener('click', addTracked);
+  ['tkCompany', 'tkRole', 'tkLink'].forEach(function(id){
+    var el = $(id);
+    if(el){
+      el.addEventListener('keydown', function(e){
+        if(e.key === 'Enter'){ e.preventDefault(); addTracked(); }
+      });
+    }
+  });
+
+  /* ---------------- STEP 04 : ranked list into the tracker ---------------- */
+  var rankRows = [], rankTracked = {};
+  var rankBody = $('rankBody'), rankOut = $('rankOut'), trackTopBtn = $('trackTop');
+
+  function rowKey(r){
+    return String((r && r.company) || '').toLowerCase() + ' | ' + String((r && r.title) || '').toLowerCase();
+  }
+  function rowPayload(r){
+    return {
+      company: String(r.company || ''),
+      role: String(r.title || ''),
+      link: safeUrl(r.link),
+      location: String(r.location || ''),
+      fit: hasFit(r.fit) ? r.fit : null
+    };
+  }
+  function emptyRank(msg){
+    if(rankBody) rankBody.innerHTML = '<tr><td colspan="6" class="loc">' + escapeHtml(msg) + '</td></tr>';
+    if(trackTopBtn) trackTopBtn.disabled = true;
+  }
+
+  /* ---------------- Excel-style column filters ----------------
+     Everything here is client-side over the rows already fetched, so filtering
+     is instant and never re-queries. `null` on a set filter means "no filter"
+     (show everything) - an EMPTY Set means the user unticked every value, which
+     legitimately shows nothing. Those are different states, so the code must
+     never collapse one into the other. */
+  var flt = {q:'', fitMin:null, fitMax:null, postedMax:null, postedUnknown:true,
+             company:null, location:null, title:''};
+  var sortCol = null, sortDir = -1;   /* null = keep the server's own order */
+
+  function fitOf(r){
+    var v = r && r.fit;
+    return (typeof v === 'number' && isFinite(v)) ? v : null;
+  }
+  function daysOf(r){
+    var v = r && r.days;
+    return (typeof v === 'number' && isFinite(v)) ? Math.round(v) : null;
+  }
+  function txt(r, col){ return String((r && r[col]) || ''); }
+
+  function filterActive(){
+    return !!(flt.q || flt.title || flt.company || flt.location ||
+              flt.fitMin !== null || flt.fitMax !== null ||
+              flt.postedMax !== null || !flt.postedUnknown || sortCol);
+  }
+
+  function passes(r){
+    if(flt.q){
+      var hay = (txt(r,'company') + ' ' + txt(r,'title') + ' ' + txt(r,'location')).toLowerCase();
+      if(hay.indexOf(flt.q) === -1) return false;
+    }
+    if(flt.title && txt(r,'title').toLowerCase().indexOf(flt.title) === -1) return false;
+
+    var f = fitOf(r);
+    /* An unscored row (fit null) is not a zero. Only exclude it once the user
+       actually sets a fit bound, otherwise the rows the ranker never reached
+       would vanish by default - the same silent-loss bug fixed in the backend. */
+    if(flt.fitMin !== null && (f === null || f < flt.fitMin)) return false;
+    if(flt.fitMax !== null && (f === null || f > flt.fitMax)) return false;
+
+    var d = daysOf(r);
+    if(d === null){ if(!flt.postedUnknown) return false; }
+    else if(flt.postedMax !== null && d > flt.postedMax) return false;
+
+    if(flt.company && !flt.company.has(txt(r,'company'))) return false;
+    if(flt.location && !flt.location.has(txt(r,'location'))) return false;
+    return true;
+  }
+
+  /* Returns [{r, i}] where i indexes rankRows, so a Track button's data-i stays
+     correct no matter what is filtered out. */
+  function visibleRows(){
+    var out = [];
+    for(var i = 0; i < rankRows.length; i++){
+      var r = rankRows[i] || {};
+      if(passes(r)) out.push({r:r, i:i});
+    }
+    if(sortCol){
+      var num = (sortCol === 'fit' || sortCol === 'posted');
+      out.sort(function(a, b){
+        var x, y;
+        if(sortCol === 'fit'){ x = fitOf(a.r); y = fitOf(b.r); }
+        else if(sortCol === 'posted'){ x = daysOf(a.r); y = daysOf(b.r); }
+        else { x = txt(a.r, sortCol).toLowerCase(); y = txt(b.r, sortCol).toLowerCase(); }
+        if(num){
+          /* unknowns always sink, whichever way the column is sorted */
+          if(x === null && y === null) return a.i - b.i;
+          if(x === null) return 1;
+          if(y === null) return -1;
+          return (x - y) * sortDir;
+        }
+        if(x === y) return a.i - b.i;
+        return (x < y ? -1 : 1) * sortDir;
+      });
+    }
+    return out;
+  }
+
+  function distinct(col){
+    var m = Object.create(null);
+    rankRows.forEach(function(r){
+      var v = txt(r, col);
+      m[v] = (m[v] || 0) + 1;
+    });
+    return Object.keys(m).sort(function(a, b){
+      return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+    }).map(function(v){ return {v:v, n:m[v]}; });
+  }
+
+  function syncFilterUI(shown){
+    var c = $('fCount');
+    if(c) c.textContent = rankRows.length
+      ? (shown === rankRows.length ? shown + ' rows' : shown + ' of ' + rankRows.length)
+      : '';
+    var cl = $('fClear');
+    if(cl) cl.disabled = !filterActive();
+    ['fit','posted','company','title','location'].forEach(function(col){
+      var btn = document.querySelector('.fbtn[data-col="' + col + '"]');
+      if(!btn) return;
+      var on = (col === 'fit'   && (flt.fitMin !== null || flt.fitMax !== null)) ||
+               (col === 'posted'&& (flt.postedMax !== null || !flt.postedUnknown)) ||
+               (col === 'company' && !!flt.company) ||
+               (col === 'location'&& !!flt.location) ||
+               (col === 'title' && !!flt.title);
+      btn.classList.toggle('on', !!on);
+      var mark = btn.querySelector('.sortmark');
+      if(mark) mark.remove();
+      if(sortCol === col){
+        var s = document.createElement('span');
+        s.className = 'sortmark';
+        s.textContent = sortDir === 1 ? '▲' : '▼';
+        btn.appendChild(s);
+      }
+    });
+  }
+
+  function renderRank(){
+    if(!rankBody) return;
+    if(!rankRows.length){
+      emptyRank('No ranked rows yet. Run a search and this list fills in.');
+      syncFilterUI(0);
+      return;
+    }
+    var vis = visibleRows();
+    syncFilterUI(vis.length);
+    if(trackTopBtn) trackTopBtn.disabled = !vis.length;
+    if(!vis.length){
+      rankBody.innerHTML = '<tr><td colspan="6" class="norows">' +
+        'No rows match these filters. <button type="button" class="flink" id="fClear2">Clear them</button></td></tr>';
+      return;
+    }
+    rankBody.innerHTML = vis.map(function(pair){
+      var r = pair.r || {}, i = pair.i;
+      var url = safeUrl(r.link);
+      var title = escapeHtml(r.title || '');
+      var titleCell = url
+        ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + title + '</a>'
+        : title;
+      var days = (typeof r.days === 'number' && isFinite(r.days)) ? Math.round(r.days) : null;
+      var daysTxt = days === null ? '\u2014' : (days === 0 ? 'today' : days + 'd');
+      var freshTag = r.fresh ? '<span class="tag-fresh">FRESH</span>' : '';
+      var blocked = r.eligibility === 'NO';
+      var blockTag = blocked
+        ? '<span class="tag-blocked" title="posting states a hard blocker \u2014 see the Excel">BLOCKED</span>'
+        : '';
+      var why = r.why ? '<span class="why">' + escapeHtml(r.why) + '</span>' : '';
+      var btn = rankTracked[rowKey(r)]
+        ? '<button type="button" class="gbtn gdone" disabled>Tracked &#10003;</button>'
+        : '<button type="button" class="gbtn" data-i="' + i + '">Track</button>';
+      return '<tr' + (blocked ? ' class="row-blocked"' : '') + '>' +
+        '<td class="fit"><span class="dot' + fitClass(r.fit) + '"></span>' +
+          escapeHtml(hasFit(r.fit) ? r.fit : '--') + '</td>' +
+        '<td class="posted">' + escapeHtml(daysTxt) + freshTag + '</td>' +
+        '<td class="co">' + escapeHtml(r.company || '') + '</td>' +
+        '<td>' + titleCell + blockTag + why + '</td>' +
+        '<td class="loc">' + escapeHtml(r.location || '') + '</td>' +
+        '<td>' + btn + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  /* ---------------- filter dropdowns ---------------- */
+  var openPop = null, openCol = null;
+
+  function closePop(){
+    if(openPop && openPop.parentNode) openPop.parentNode.removeChild(openPop);
+    openPop = null; openCol = null;
+  }
+
+  function sortBlock(col, ascLabel, descLabel){
+    return '<div class="fsort">' +
+      '<button type="button" data-sort="asc"' + (sortCol === col && sortDir === 1 ? ' class="on"' : '') + '>' + ascLabel + '</button>' +
+      '<button type="button" data-sort="desc"' + (sortCol === col && sortDir === -1 ? ' class="on"' : '') + '>' + descLabel + '</button>' +
+      '<button type="button" data-sort="none"' + (sortCol === col ? '' : ' class="on"') + '>Best</button>' +
+      '</div>';
+  }
+
+  function checkList(col){
+    var sel = flt[col];
+    return '<input type="search" class="fin" data-role="search" placeholder="Search..." autocomplete="off">' +
+      '<div class="fchecks" data-role="list">' + distinct(col).map(function(o){
+        var on = !sel || sel.has(o.v);
+        return '<label data-v="' + escapeHtml(o.v) + '">' +
+          '<input type="checkbox"' + (on ? ' checked' : '') + '>' +
+          '<span>' + escapeHtml(o.v || '(blank)') + '</span>' +
+          '<span class="cnt">' + o.n + '</span></label>';
+      }).join('') + '</div>' +
+      '<div class="flinks"><button type="button" class="flink" data-all="1">Select all</button>' +
+      '<button type="button" class="flink" data-all="0">Clear</button></div>';
+  }
+
+  function popHtml(col){
+    if(col === 'fit'){
+      return sortBlock('fit', 'Low first', 'High first') +
+        '<span class="flabel">Fit between</span>' +
+        '<div class="frow">' +
+          '<input type="number" class="fin" data-role="min" min="0" max="100" placeholder="0" value="' + (flt.fitMin === null ? '' : flt.fitMin) + '">' +
+          '<input type="number" class="fin" data-role="max" min="0" max="100" placeholder="100" value="' + (flt.fitMax === null ? '' : flt.fitMax) + '">' +
+        '</div>' +
+        '<div class="fquick">' +
+          '<button type="button" data-min="90">90+</button>' +
+          '<button type="button" data-min="75">75+</button>' +
+          '<button type="button" data-min="55">55+</button>' +
+          '<button type="button" data-min="">Any</button>' +
+        '</div>';
+    }
+    if(col === 'posted'){
+      var q = [['0','Today'],['1','1 day'],['2','2 days'],['7','1 week'],['30','30 days'],['','Any']];
+      return sortBlock('posted', 'Newest first', 'Oldest first') +
+        '<span class="flabel">Posted within</span>' +
+        '<div class="fquick">' + q.map(function(p){
+          var on = (p[0] === '' && flt.postedMax === null) ||
+                   (p[0] !== '' && flt.postedMax === Number(p[0]));
+          return '<button type="button" data-days="' + p[0] + '"' + (on ? ' class="on"' : '') + '>' + p[1] + '</button>';
+        }).join('') + '</div>' +
+        '<div class="fchecks"><label><input type="checkbox" data-role="unknown"' +
+          (flt.postedUnknown ? ' checked' : '') + '><span>Include unknown dates</span></label></div>';
+    }
+    if(col === 'title'){
+      return sortBlock('title', 'A to Z', 'Z to A') +
+        '<span class="flabel">Title contains</span>' +
+        '<input type="search" class="fin" data-role="contains" placeholder="e.g. intern" value="' + escapeHtml(flt.title) + '" autocomplete="off">' +
+        '<div class="fquick" style="margin-top:7px">' +
+          '<button type="button" data-t="intern">intern</button>' +
+          '<button type="button" data-t="product manager">product manager</button>' +
+          '<button type="button" data-t="new grad">new grad</button>' +
+          '<button type="button" data-t="">Any</button>' +
+        '</div>';
+    }
+    return sortBlock(col, 'A to Z', 'Z to A') + checkList(col);
+  }
+
+  function readChecks(pop, col){
+    var boxes = pop.querySelectorAll('.fchecks label input[type=checkbox]');
+    var all = [], on = [];
+    boxes.forEach(function(b){
+      var v = b.parentNode.getAttribute('data-v');
+      if(v === null) return;
+      all.push(v);
+      if(b.checked) on.push(v);
+    });
+    /* everything ticked means "no filter" - keep it null so later rows that
+       appear after a re-run are not silently excluded by a stale value list */
+    flt[col] = (on.length === all.length) ? null : new Set(on);
+  }
+
+  function positionPop(pop, btn){
+    var r = btn.getBoundingClientRect();
+    pop.style.visibility = 'hidden';
+    pop.style.left = '0px'; pop.style.top = '0px';
+    var w = pop.offsetWidth, h = pop.offsetHeight;
+    var left = Math.min(r.left, Math.max(6, window.innerWidth - w - 8));
+    var top = r.bottom + 4;
+    if(top + h > window.innerHeight - 6) top = Math.max(6, r.top - h - 4);
+    pop.style.left = Math.max(6, left) + 'px';
+    pop.style.top = top + 'px';
+    pop.style.visibility = '';
+  }
+
+  function showPop(col, btn){
+    var same = (openCol === col);
+    closePop();
+    if(same) return;
+    var pop = document.createElement('div');
+    pop.className = 'fpop';
+    pop.innerHTML = popHtml(col) + '<button type="button" class="fdone">Done</button>';
+    document.body.appendChild(pop);
+    openPop = pop; openCol = col;
+    positionPop(pop, btn);
+
+    var apply = function(){ renderRank(); positionPop(pop, btn); };
+
+    pop.addEventListener('click', function(e){
+      var t = e.target;
+      if(!t || !t.closest) return;
+      var b = t.closest('button');
+      if(b && b.hasAttribute('data-sort')){
+        var s = b.getAttribute('data-sort');
+        if(s === 'none'){ sortCol = null; }
+        else { sortCol = col; sortDir = (s === 'asc') ? 1 : -1; }
+        pop.querySelectorAll('.fsort button').forEach(function(x){ x.classList.remove('on'); });
+        b.classList.add('on');
+        apply(); return;
+      }
+      if(b && b.hasAttribute('data-min')){
+        var mv = b.getAttribute('data-min');
+        flt.fitMin = mv === '' ? null : Number(mv);
+        if(mv === '') flt.fitMax = null;
+        var mn = pop.querySelector('[data-role=min]'), mx = pop.querySelector('[data-role=max]');
+        if(mn) mn.value = mv;
+        if(mx && mv === '') mx.value = '';
+        apply(); return;
+      }
+      if(b && b.hasAttribute('data-days')){
+        var dv = b.getAttribute('data-days');
+        flt.postedMax = dv === '' ? null : Number(dv);
+        pop.querySelectorAll('.fquick button').forEach(function(x){ x.classList.remove('on'); });
+        b.classList.add('on');
+        apply(); return;
+      }
+      if(b && b.hasAttribute('data-t')){
+        flt.title = b.getAttribute('data-t').toLowerCase();
+        var ci = pop.querySelector('[data-role=contains]');
+        if(ci) ci.value = flt.title;
+        apply(); return;
+      }
+      if(b && b.hasAttribute('data-all')){
+        var want = b.getAttribute('data-all') === '1';
+        pop.querySelectorAll('.fchecks label').forEach(function(l){
+          if(l.style.display === 'none') return;      /* respect the in-panel search */
+          var box = l.querySelector('input');
+          if(box) box.checked = want;
+        });
+        readChecks(pop, col); apply(); return;
+      }
+      if(b && b.classList.contains('fdone')){ closePop(); return; }
+    });
+
+    pop.addEventListener('change', function(e){
+      var t = e.target;
+      if(!t) return;
+      if(t.getAttribute('data-role') === 'unknown'){ flt.postedUnknown = t.checked; apply(); return; }
+      if(t.type === 'checkbox'){ readChecks(pop, col); apply(); }
+    });
+
+    pop.addEventListener('input', function(e){
+      var t = e.target, role = t && t.getAttribute && t.getAttribute('data-role');
+      if(role === 'search'){
+        var q = t.value.trim().toLowerCase();
+        pop.querySelectorAll('.fchecks label').forEach(function(l){
+          var v = (l.getAttribute('data-v') || '').toLowerCase();
+          l.style.display = (!q || v.indexOf(q) !== -1) ? '' : 'none';
+        });
+        return;
+      }
+      if(role === 'min' || role === 'max'){
+        var raw = t.value.trim();
+        var n = raw === '' ? null : Number(raw);
+        if(n !== null && !isFinite(n)) return;
+        flt[role === 'min' ? 'fitMin' : 'fitMax'] = n;
+        renderRank(); return;
+      }
+      if(role === 'contains'){ flt.title = t.value.trim().toLowerCase(); renderRank(); }
+    });
+
+    var first = pop.querySelector('input, button');
+    if(first && first.focus) try{ first.focus(); }catch(_e){}
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    var btn = (t && t.closest) ? t.closest('.fbtn[data-col]') : null;
+    if(btn){ e.preventDefault(); showPop(btn.getAttribute('data-col'), btn); return; }
+    if(openPop && t && t.closest && !t.closest('.fpop')) closePop();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && openPop) closePop();
+  });
+  window.addEventListener('resize', closePop);
+  /* the header is sticky inside a scroller, so a fixed panel would drift */
+  var rtEl = document.querySelector('.ranktable');
+  if(rtEl) rtEl.addEventListener('scroll', closePop, {passive:true});
+  window.addEventListener('scroll', closePop, {passive:true});
+
+  function clearFilters(){
+    flt = {q:'', fitMin:null, fitMax:null, postedMax:null, postedUnknown:true,
+           company:null, location:null, title:''};
+    sortCol = null; sortDir = -1;
+    var s = $('fSearch'); if(s) s.value = '';
+    closePop();
+    renderRank();
+  }
+
+  var fSearchEl = $('fSearch');
+  if(fSearchEl){
+    fSearchEl.addEventListener('input', function(){
+      flt.q = this.value.trim().toLowerCase();
+      renderRank();
+    });
+  }
+  var fClearEl = $('fClear');
+  if(fClearEl) fClearEl.addEventListener('click', clearFilters);
+  if(rankBody){
+    rankBody.addEventListener('click', function(e){
+      if(e.target && e.target.id === 'fClear2') clearFilters();
+    });
+  }
+
+  /* The server caps limit at 1000. Asking for the old 100 quietly amputated
+     the list under a heading that says "Every ranked match" - and because the
+     backend sorts unscored rows (fit null) to the very bottom, the rows the
+     ranker never got to were always the first ones to disappear. */
+  var RANK_LIMIT = 1000;
+
+  function showRankTotal(total){
+    var el = $('rankCount');
+    if(!el) return;
+    var t = Number(total) || 0;
+    var shown = rankRows.length;
+    if(!shown){ el.textContent = ''; return; }
+    el.textContent = (t > shown) ? '  ·  ' + shown + ' of ' + t : '  ·  ' + shown;
+  }
+
+  async function loadResults(){
+    try{
+      var d = await getJSON('/api/results?limit=' + RANK_LIMIT);
+      if(d && d.ok){
+        rankRows = Array.isArray(d.rows) ? d.rows : [];
+        renderRank();
+        showRankTotal(d.total);
+        var th = $('thVal');
+        if(th && th.value === '' && document.activeElement !== th &&
+           typeof d.threshold !== 'undefined' && d.threshold !== null){
+          th.value = String(d.threshold);
+        }
+      } else {
+        rankRows = [];
+        showRankTotal(0);
+        emptyRank((d && d.error) || 'No ranked list yet.');
+      }
+    } catch(e){
+      rankRows = [];
+      showRankTotal(0);
+      emptyRank(errText(e));
+    }
+  }
+
+  if(rankBody){
+    rankBody.addEventListener('click', async function(e){
+      var b = e.target && e.target.closest ? e.target.closest('button[data-i]') : null;
+      if(!b) return;
+      var r = rankRows[parseInt(b.getAttribute('data-i'), 10)];
+      if(!r) return;
+      clearBubble(rankOut);
+      var was = b.innerHTML;
+      b.disabled = true;
+      b.textContent = 'Saving...';
+      try{
+        var d = await postJSON('/api/tracker', rowPayload(r));
+        if(d && d.ok){
+          rankTracked[rowKey(r)] = true;
+          b.innerHTML = 'Tracked &#10003;';
+          b.classList.add('gdone');
+          if(trackerLoaded) loadTracker(); else refreshBadge();
+        } else {
+          b.disabled = false; b.innerHTML = was;
+          bubble(rankOut, 'err', 'Could not track that', (d && d.error) || 'The role was not saved.');
+        }
+      } catch(err){
+        b.disabled = false; b.innerHTML = was;
+        bubble(rankOut, 'err', 'Request failed', errText(err));
+      }
+    });
+  }
+
+  if(trackTopBtn){
+    trackTopBtn.addEventListener('click', async function(){
+      if(!rankRows.length) return;
+      /* the top of what the user is actually looking at, not of the raw list -
+         otherwise filtering to "intern" and hitting this tracks 20 non-interns */
+      var top = visibleRows().slice(0, 20).map(function(p){ return p.r; });
+      if(!top.length) return;
+      var label = trackTopBtn.innerHTML;
+      clearBubble(rankOut);
+      trackTopBtn.disabled = true;
+      trackTopBtn.textContent = 'Sending...';
+      try{
+        var d = await postJSON('/api/tracker/bulk', {items: top.map(rowPayload)});
+        if(d && d.ok){
+          top.forEach(function(r){ rankTracked[rowKey(r)] = true; });
+          renderRank();
+          bubble(rankOut, 'ok', 'Sent to the tracker',
+                 'Added ' + (Number(d.added) || 0) + ', skipped ' + (Number(d.skipped) || 0) + ' already tracked.');
+          if(trackerLoaded) loadTracker(); else refreshBadge();
+        } else {
+          bubble(rankOut, 'err', 'Could not send those', (d && d.error) || 'Nothing was added.');
+        }
+      } catch(e){
+        bubble(rankOut, 'err', 'Request failed', errText(e));
+      } finally {
+        trackTopBtn.innerHTML = label;
+        trackTopBtn.disabled = false;
+      }
+    });
+  }
+
+  /* ---------------- STEP 04 : fit threshold + fresh window ---------------- */
+  var thVal = $('thVal'), thSave = $('thSave'), thNote = $('thNote'), fwVal = $('fwVal');
+
+  function setThNote(text, bad){
+    if(!thNote) return;
+    thNote.textContent = text || '';
+    thNote.style.color = bad ? 'var(--red)' : 'var(--muted)';
+  }
+
+  async function loadThreshold(){
+    try{
+      var d = await getJSON('/api/threshold');
+      if(d && d.ok){
+        if(typeof d.value !== 'undefined' && d.value !== null){
+          if(thVal && document.activeElement !== thVal) thVal.value = String(d.value);
+          setThNote('Now ' + d.value, false);
+        }
+        if(fwVal && document.activeElement !== fwVal &&
+           typeof d.fresh_days !== 'undefined' && d.fresh_days !== null){
+          fwVal.value = String(d.fresh_days);
+        }
+      }
+    } catch(e){ /* a run still works without this control */ }
+  }
+
+  if(thSave){
+    thSave.addEventListener('click', async function(){
+      var n = parseInt((thVal && thVal.value) || '', 10);
+      if(isNaN(n) || n < 0 || n > 100){
+        setThNote('Enter 0 to 100', true);
+        return;
+      }
+      var body = {value: n};
+      var fwRaw = fwVal ? String(fwVal.value || '').trim() : '';
+      if(fwRaw !== ''){
+        var f = parseInt(fwRaw, 10);
+        if(isNaN(f) || f < 0 || f > 30){
+          setThNote('Fresh window: 0 to 30', true);
+          return;
+        }
+        body.fresh_days = f;
+      }
+      thSave.disabled = true;
+      setThNote('Saving...', false);
+      try{
+        var d = await postJSON('/api/threshold', body);
+        if(d && d.ok){
+          if(thVal) thVal.value = String(d.value);
+          if(fwVal && typeof d.fresh_days !== 'undefined' && d.fresh_days !== null){
+            fwVal.value = String(d.fresh_days);
+          }
+          setThNote('Saved - next run uses ' + d.value, false);
+        } else {
+          setThNote('Not saved', true);
+          bubble(rankOut, 'err', 'Threshold not saved', (d && d.error) || 'config.json was not written.');
+        }
+      } catch(e){
+        setThNote('Not saved', true);
+        bubble(rankOut, 'err', 'Request failed', errText(e));
+      } finally {
+        thSave.disabled = false;
+      }
+    });
+  }
+
+  showView(hashView());
+
+  loadThreshold();
+
+  /* ---------------- boot / restore ---------------- */
+  (async function boot(){
+    try{
+      var s = await getJSON('/api/state');
+      if(s.has_key){ markDone(1); unlock(2, false); }
+      if(s.has_profile){
+        markDone(2);
+        unlock(2, false);
+        unlock(3, false);
+        if(s.profile) renderProfile(s.profile);
+      }
+      if(typeof s.tracker_count !== 'undefined') setBadge(s.tracker_count);
+      if(s.has_excel){
+        unlock(4, false);
+        renderExcelMeta(s.excel);
+      }
+      applyExternalRun(!!s.external_run);
+      if(s.running && !s.external_run){
+        unlock(2, false);
+        unlock(3, false);
+        beginPolling(true);
+      }
+    } catch(e){
+      bubble($('bootErr'), 'err', 'Offline', errText(e) + ' Reload once the server is back.');
+    } finally {
+      /* Always, not only when a workbook exists: otherwise #rankBody keeps its
+         "Loading the ranked list..." placeholder forever and #trackTop is left
+         enabled with nothing behind it. /api/results answers ok:false with a
+         readable reason when there is no spreadsheet yet. */
+      loadResults();
+    }
+  })();
+
+})();
+</script>
+</body>
+</html>
