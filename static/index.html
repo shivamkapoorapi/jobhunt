@@ -740,7 +740,7 @@
     <div class="lr-grid">
       <div class="lr-main">
         <span class="lr-num" id="lrRoles">&mdash;</span>
-        <span class="lr-lab">roles matched your resume</span>
+        <span class="lr-lab">open roles matching your resume</span>
       </div>
       <div class="lr-meta">
         <div class="lr-row"><span class="lr-k">Last run</span><span class="lr-v" id="lrWhen">&mdash;</span></div>
@@ -2641,8 +2641,12 @@
       var el = $(id);
       if(el) el.classList.add('hidden');
     });
+    var rb = $('resultBox');
+    if(rb) rb.classList.add('hidden');
     var s4 = $('step4');
     if(s4){ s4.classList.remove('locked'); s4.removeAttribute('aria-disabled'); }
+    var h = s4 && s4.querySelector('h2');
+    if(h) h.textContent = 'Every role we found for you';
     var tag = s4 && s4.querySelector('.lock-tag');
     if(tag) tag.remove();
     var eyebrow = s4 && s4.querySelector('.eyebrow');
@@ -2677,7 +2681,10 @@
         } else if(!d.roles){
           note.textContent = 'No search has been published yet.';
         } else {
-          note.textContent = 'Updated automatically after each search.';
+          note.textContent = 'These are the roles open right now that match your '
+            + 'resume - not just ones posted today. Each search replaces this list '
+            + 'with a fresh snapshot, so a role disappears once the company closes '
+            + 'it. Anything you track stays in your tracker for good.';
         }
       }
     } catch(e){ /* the results table below still works */ }
