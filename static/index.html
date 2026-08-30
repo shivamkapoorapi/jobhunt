@@ -917,7 +917,7 @@
         </div>
       </div>
 
-      <div class="thresh">
+      <div class="thresh" id="threshBox">
         <div class="threshrow">
           <div>
             <label class="flab" for="thVal">Minimum AI fit</label>
@@ -1253,7 +1253,7 @@
         $('attName').textContent = p.resume_file;
         var bits = [];
         if(p.resume_size) bits.push(fmtBytes(p.resume_size));
-        if(p.resume_uploaded_at) bits.push('added ' + p.resume_uploaded_at);
+        if(p.resume_uploaded_at) bits.push('added ' + fmtWhen(p.resume_uploaded_at));
         $('attMeta').textContent = bits.join('  ·  ');
         box.hidden = false;
       } else {
@@ -1262,6 +1262,23 @@
     }
     profileBox.classList.add('on');
     if(p.name) $('navUser').textContent = p.name;
+  }
+
+  /* "2026-08-30 09:42" reads like a log line. People read a clock. */
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtWhen(raw){
+    var m = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if(!m) return raw || '—';
+    var day = parseInt(m[3], 10);
+    var mon = MONTHS[parseInt(m[2], 10) - 1] || m[2];
+    var out = day + ' ' + mon + ' ' + m[1];
+    if(m[4] !== undefined){
+      var h = parseInt(m[4], 10);
+      var ampm = h < 12 ? 'AM' : 'PM';
+      var h12 = h % 12; if(h12 === 0) h12 = 12;
+      out += ', ' + h12 + ':' + m[5] + ' ' + ampm;
+    }
+    return out;
   }
 
   function fmtBytes(n){
@@ -1351,7 +1368,7 @@
         '<div class="rtop">' +
           '<span class="rbig">' + escapeHtml(String(r.ready || 0)) + '</span>' +
           '<span class="rlab">roles ready</span>' +
-          '<span class="rwhen">' + escapeHtml(r.date + '  ' + (r.time || '')) + '</span>' +
+          '<span class="rwhen">' + escapeHtml(fmtWhen(r.date + ' ' + (r.time || ''))) + '</span>' +
           tags +
         '</div>' +
         '<div class="rstats">' + stats + '</div>' +
@@ -2617,7 +2634,10 @@
      if they were clicked. The server decides this - show_setup - because the
      browser has no idea whether a search is even possible here. */
   function applyReadOnly(){
-    ['step1','step2','step3'].forEach(function(id){
+    /* The threshold and fresh-window controls only take effect on the NEXT
+       search, which this user cannot start. Showing them promises a change
+       that would never happen. */
+    ['step1','step2','step3','threshBox'].forEach(function(id){
       var el = $(id);
       if(el) el.classList.add('hidden');
     });
@@ -2645,7 +2665,7 @@
       if(!d || !d.ok) return;
       var set = function(id, v){ var e = $(id); if(e) e.textContent = v; };
       set('lrRoles', (d.roles === null || typeof d.roles === 'undefined') ? '—' : d.roles);
-      set('lrWhen',  d.when || '—');
+      set('lrWhen',  fmtWhen(d.when));
       set('lrNew',   (typeof d.new === 'number') ? d.new : '—');
       set('lrCut',   (typeof d.threshold === 'number') ? ('fit ' + d.threshold + '+') : '—');
       set('lrRuns',  (typeof d.runs === 'number') ? d.runs : '—');
