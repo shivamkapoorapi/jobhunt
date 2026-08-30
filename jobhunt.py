@@ -1657,6 +1657,34 @@ def _run_locked(_args):
     if carried:
         log(f"Carried your notes forward on {carried} rows")
 
+    # A role she has already applied to must not vanish because this run did
+    # not re-find it. That happens easily: the board was down, the posting was
+    # briefly unreachable, or the fit cutoff moved. The workbook is rewritten
+    # from `rows` alone, so without this her Applied Date and Notes for that
+    # role are gone from every sheet, permanently.
+    seen_keys = {r["Key"] for r in rows}
+    rescued = 0
+    for key, p in prior.items():
+        if key in seen_keys:
+            continue
+        if not (p.get("Status") or p.get("Applied Date") or p.get("Notes")):
+            continue                      # nothing of hers attached to it
+        ghost = dict(PRIOR_ROW_TEMPLATE)
+        ghost.update(p)
+        ghost["Key"] = key
+        company, _, title = str(key).partition("|")
+        ghost.setdefault("Company", company.strip() or "(from an earlier run)")
+        ghost["Company"] = ghost.get("Company") or company.strip()
+        ghost["Title"] = ghost.get("Title") or title.strip()
+        ghost["Risk Notes"] = ("kept from an earlier run because you had marked it; "
+                               "this run did not find it")
+        ghost["Link Status"] = "NOT IN THIS RUN"
+        rows.append(ghost)
+        rescued += 1
+    if rescued:
+        log(f"Kept {rescued} role(s) you had already marked but this run did not "
+            f"re-find - see 'All Matches'")
+
     # Both saves are guarded. On Windows, Excel holding either workbook open
     # raises PermissionError, and an unguarded save killed the run right here -
     # losing the whole fetch/verify/rank pass AND the first_seen state below,
@@ -1776,6 +1804,58 @@ def _profile_name():
 # Publishing to shared storage
 # --------------------------------------------------------------------------
 
+def _row_key(r):
+    """What makes two rows the same posting. The apply link, when there is one:
+    the same company and title can be two real jobs in two cities."""
+    link = str(r.get("link") or "").strip().lower()
+    if link:
+        return link
+    return "|".join(str(r.get(k, "")).strip().lower()
+                    for k in ("company", "title", "location"))
+
+
+def _merge_into_day(storage, day, payload):
+    """Union this run's rows with whatever is already stored for `day`.
+
+    Newer wins field by field, so a re-scored role updates; a role only the
+    earlier run saw is carried forward rather than dropped. The archive answers
+    "what did we see on this date", and we did see it.
+    """
+    existing = storage.get_json(f"results:{day}", None)
+
+    # Could not READ today's archive. That is not evidence it is empty, and
+    # writing here would replace a good morning run with a bad evening one --
+    # precisely the loss this function exists to prevent. Refuse instead.
+    if existing is storage.MISSING or existing is storage.CORRUPT:
+        return None
+
+    if not isinstance(existing, dict):
+        payload["runs_today"] = 1
+        return payload
+
+    old_rows = existing.get("rows") or []
+    if not old_rows:
+        payload["runs_today"] = int(existing.get("runs_today") or 0) + 1
+        return payload
+
+    merged = {_row_key(r): r for r in old_rows}
+    carried = len(merged)
+    for r in payload.get("rows") or []:
+        merged[_row_key(r)] = r          # this run's version wins
+    rows = list(merged.values())
+    rows.sort(key=lambda r: (-(r["fit"] if isinstance(r.get("fit"), int) else -1),
+                             r.get("days") if isinstance(r.get("days"), int) else 9999,
+                             str(r.get("company", ""))))
+
+    kept = len(rows) - len(payload.get("rows") or [])
+    payload["rows"] = rows
+    payload["total"] = len(rows)
+    payload["runs_today"] = int(existing.get("runs_today") or 1) + 1
+    log(f"  archive    merged with {carried} already stored for {day}"
+        + (f"  (+{kept} carried forward)" if kept > 0 else ""))
+    return payload
+
+
 def publish_results(keep, workbook_path):
     """Push this run's rows (and the workbook) to the shared store.
 
@@ -1822,21 +1902,54 @@ def publish_results(keep, workbook_path):
         # erases the last one, so a role that closed on Tuesday is simply gone
         # and there is no way to look back at what was open on a given day.
         today = datetime.now().strftime("%Y-%m-%d")
-        if storage.set_json(f"results:{today}", payload):
+
+        # Merge with anything already stored for today rather than overwriting.
+        # A second run is not a correction of the first: a board being down, or
+        # a raised cutoff, makes it SMALLER, and a plain overwrite would delete
+        # roles the morning run legitimately found. This project already saw a
+        # run return 17 roles instead of 721 for exactly that reason.
+        merged = _merge_into_day(storage, today, payload)
+        if merged is None:
+            log(f"  archive    SKIPPED for {today} - could not read what is already")
+            log("             stored, so nothing was overwritten. Re-run when the")
+            log("             store is reachable; your Excel on this machine is fine.")
+        elif storage.set_json(f"results:{today}", merged):
+            payload = merged
             dates = storage.get_json("results:dates", [])
-            if dates is storage.MISSING or not isinstance(dates, list):
-                dates = []
-            if today not in dates:
-                dates.append(today)
-            dates = sorted(set(dates))[-400:]
-            storage.set_json("results:dates", dates)
-            log(f"  archive    saved under {today}  ({len(dates)} days kept)")
+            if dates is storage.MISSING or dates is storage.CORRUPT:
+                # A failed read is not an empty index. Writing one derived from
+                # it would unindex every past day, and nothing rebuilds it.
+                log(f"  archive    saved under {today}, but the day index could not")
+                log("             be read - left untouched rather than shrunk")
+            else:
+                if not isinstance(dates, list):
+                    dates = []
+                before = len(dates)
+                if today not in dates:
+                    dates.append(today)
+                dates = sorted(set(str(d) for d in dates))[-400:]
+                if len(dates) < before:
+                    log(f"  archive    index would have shrunk {before} -> {len(dates)};"
+                        f" left untouched")
+                elif storage.set_json("results:dates", dates):
+                    log(f"  archive    saved under {today}  ({len(dates)} days kept)")
+                else:
+                    log(f"  archive    saved under {today}, but the index write FAILED")
         else:
-            log(f"  archive    FAILED for {today}")
+            big, kb = storage.too_big(merged)
+            log(f"  archive    FAILED for {today}"
+                + (f" - {kb} KB exceeds the 1 MB value limit" if big else ""))
 
         if storage.set_json("results", payload):
-            scored = sum(1 for r in rows if r["fit"] is not None)
-            log(f"  roles      {len(rows)} sent  ({scored} AI-scored)")
+            # payload is the MERGED day after _merge_into_day, so report that,
+            # not the pre-merge list -- "71 sent" beside a stored 78 reads like
+            # a bug in the very code that just prevented one.
+            final = payload.get("rows") or []
+            scored = sum(1 for r in final if r.get("fit") is not None)
+            extra = len(final) - len(rows)
+            log(f"  roles      {len(final)} on the site  ({scored} AI-scored"
+                + (f", {len(rows)} from this run + {extra} kept from earlier today"
+                   if extra > 0 else "") + ")")
         else:
             log("  roles      FAILED - the website keeps the previous set")
             log("             (nothing is lost; this machine's Excel is fine)")
@@ -1903,6 +2016,12 @@ def _load_dotenv():
 
 
 _load_dotenv()
+
+
+# A blank row with every column the workbook expects, used when carrying a
+# role forward that this run did not re-find.
+PRIOR_ROW_TEMPLATE = {c: "" for c in COLUMNS}
+PRIOR_ROW_TEMPLATE["Score"] = 0
 
 
 HISTORY_PATH = os.path.join(HERE, "history.json")

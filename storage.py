@@ -39,6 +39,11 @@ TIMEOUT = 15
 # "the store did not answer", which is what this means.
 MISSING = object()
 
+# A value the store returned but that will not parse. Distinct from MISSING
+# ("could not read") and from absent ("never written") -- silently skipping it
+# would under-report a range as if the day had held nothing.
+CORRUPT = object()
+
 _session = None
 _session_lock = threading.Lock()
 
@@ -134,16 +139,33 @@ def get_json(key, default=None):
     try:
         return json.loads(raw)
     except (ValueError, TypeError):
-        return default
+        return CORRUPT
+
+
+VALUE_CAP = 1_000_000          # Upstash free tier caps a value at 1 MB
 
 
 def set_json(key, value):
+    """False on refusal or failure. Checks the size ceiling first, because a
+    day's archive grows all run and 'the store said no' is otherwise opaque."""
     if not enabled():
         return False
     try:
-        return _set_raw(key, json.dumps(value, ensure_ascii=False))
+        blob = json.dumps(value, ensure_ascii=False)
     except (TypeError, ValueError):
         return False
+    if len(blob.encode("utf-8")) > VALUE_CAP:
+        return False
+    return _set_raw(key, blob)
+
+
+def too_big(value):
+    """(is_too_big, kilobytes) - so a caller can explain the refusal."""
+    try:
+        n = len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+    except (TypeError, ValueError):
+        return True, 0
+    return n > VALUE_CAP, n // 1024
 
 
 def delete(key):
@@ -160,25 +182,37 @@ def keys(pattern="*"):
     return [k[n:] if k.startswith(PREFIX) else k for k in res]
 
 
-def mget_json(names):
-    """Fetch many keys in one round trip.
+MGET_BATCH = 25
 
-    A date range spans one key per day. Doing that as N separate GETs turns a
-    month's history into 30 sequential HTTP calls; MGET makes it one.
+
+def mget_json(names):
+    """Fetch many keys. Returns MISSING if ANY batch could not be read.
+
+    Two things this must not do. It must not answer "unreachable" with an empty
+    dict -- a caller cannot tell that from "the archive is empty", and would
+    render a year of history as zero roles. And it must not ask for 400 keys in
+    one request: that response is megabytes and blows the timeout, which is what
+    produced the unreachable state to begin with. Hence batching.
     """
-    if not enabled() or not names:
-        return {}
-    res = _command("MGET", *[f"{PREFIX}{n}" for n in names])
-    if res is MISSING or not isinstance(res, list):
+    if not enabled():
+        return MISSING
+    if not names:
         return {}
     out = {}
-    for name, raw in zip(names, res):
-        if raw is None:
-            continue
-        try:
-            out[name] = json.loads(raw)
-        except (ValueError, TypeError):
-            continue
+    for i in range(0, len(names), MGET_BATCH):
+        chunk = names[i:i + MGET_BATCH]
+        res = _command("MGET", *[f"{PREFIX}{n}" for n in chunk])
+        if res is MISSING or not isinstance(res, list) or len(res) != len(chunk):
+            # A short list would silently misalign the zip below.
+            return MISSING
+        for name, raw in zip(chunk, res):
+            if raw is None:
+                continue
+            try:
+                out[name] = json.loads(raw)
+            except (ValueError, TypeError):
+                # Corrupt, not absent. Report rather than quietly skip.
+                out[name] = CORRUPT
     return out
 
 
@@ -201,8 +235,12 @@ def set_bytes(key, data):
 
 
 def get_bytes(key):
+    """MISSING if unreachable, None if genuinely absent - the download must not
+    tell someone to re-run a search that already succeeded."""
     raw = _get_raw(key)
-    if raw is MISSING or raw is None:
+    if raw is MISSING:
+        return MISSING
+    if raw is None:
         return None
     try:
         return base64.b64decode(raw)

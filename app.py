@@ -506,7 +506,8 @@ def _tracker_path(uid=None):
     return path
 
 STATUSES = ("saved", "applied", "interview", "offer", "rejected")
-TEXT_CAP = 200                 # company / role / link / location
+TEXT_CAP = 200
+LINK_CAP = 600                 # ATS URLs carry long tracking ids
 NOTE_CAP = 1000                # the free-text note
 
 # Its own lock, deliberately not _lock: the reader thread holds _lock for
@@ -552,23 +553,25 @@ def _today():
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def _item_id(company, role):
+def _item_id(company, role, link="", location=""):
     """A short id derived from the job itself, never random.
 
     The same company+role always hashes to the same id, which is what makes
     the /bulk dedupe a set lookup and makes re-saving a job you already have
     a no-op instead of a second row.
     """
-    seed = company.strip().lower() + "|" + role.strip().lower()
+    seed = (link or "").strip().lower()
+    if not seed:
+        seed = "|".join(x.strip().lower() for x in (company, role, location or ""))
     return hashlib.sha1(seed.encode("utf-8")).hexdigest()[:12]
 
 
 def _new_item(company, role, link="", location="", fit=None, status="saved"):
     return {
-        "id": _item_id(company, role),
+        "id": _item_id(company, role, link, location),
         "company": company,
         "role": role,
-        "link": _clean(link),
+        "link": _clean(link, LINK_CAP),
         "location": _clean(location),
         "fit": _clean_fit(fit),
         "status": status,
@@ -596,10 +599,12 @@ def _shape_item(raw):
     role = role or "(unknown role)"
     status = _clean(raw.get("status"), 20).lower()
     return {
-        "id": _clean(raw.get("id"), 40) or _item_id(company, role),
+        "id": _clean(raw.get("id"), 40) or _item_id(
+            company, role, _clean(raw.get("link"), LINK_CAP),
+            _clean(raw.get("location"))),
         "company": company,
         "role": role,
-        "link": _clean(raw.get("link")),
+        "link": _clean(raw.get("link"), LINK_CAP),
         "location": _clean(raw.get("location")),
         "fit": _clean_fit(raw.get("fit")),
         "status": status if status in STATUSES else "saved",
@@ -643,6 +648,11 @@ def _write_tracker(items):
     os.replace is only atomic within a single filesystem.
     """
     target = _tracker_path()
+    # Must write the shared store too. Writing only to disk while
+    # _tracker_items() reads through _read_json (store first) meant every
+    # "Track" returned ok:true and then showed nothing - silently a no-op.
+    wrote_remote = (storage.set_json(_store_key(target), {"items": items})
+                    if storage.enabled() else False)
     tmp = target + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
@@ -652,6 +662,8 @@ def _write_tracker(items):
             os.fsync(f.fileno())
         os.replace(tmp, target)
     except OSError:
+        if wrote_remote:
+            return
         try:
             os.remove(tmp)
         except OSError:
@@ -1302,6 +1314,10 @@ def download():
     path = _excel_path()
     if not os.path.exists(path):
         blob = storage.get_bytes("workbook") if storage.enabled() else None
+        if blob is storage.MISSING:
+            return jsonify(ok=False, error=(
+                "Could not reach the file store - the spreadsheet is there, it "
+                "just could not be fetched. Try again in a moment.")), 503
         if blob:
             from flask import Response
             return Response(blob, mimetype=(
@@ -1388,13 +1404,15 @@ def tracker_bulk():
     added, skipped = 0, 0
     with _tracker_lock:
         items = _tracker_items()
-        # The id is built from the lower-cased company+role, so an id already
-        # in this set IS the case-insensitive duplicate check.
+        # The id is built from the apply link (or company+role+location), so an
+        # id already in this set IS the duplicate check.
         seen = {i["id"] for i in items}
         for raw in rows:
             company = _clean(raw.get("company")) if isinstance(raw, dict) else ""
             role = _clean(raw.get("role")) if isinstance(raw, dict) else ""
-            if not company or not role or _item_id(company, role) in seen:
+            if not company or not role or _item_id(
+                    company, role, _clean(raw.get("link"), LINK_CAP),
+                    _clean(raw.get("location"))) in seen:
                 skipped += 1
                 continue
             item = _new_item(company, role, raw.get("link"),
@@ -1531,7 +1549,9 @@ def _archive_dates():
     if not storage.enabled():
         return []
     d = storage.get_json("results:dates", [])
-    if d is storage.MISSING or not isinstance(d, list):
+    if d is storage.MISSING or d is storage.CORRUPT:
+        return None            # unreachable - NOT the same as "nothing archived"
+    if not isinstance(d, list):
         return []
     return sorted(str(x) for x in d)
 
@@ -1548,16 +1568,24 @@ def _published_rows(frm=None, to=None):
     times.
     """
     empty = {"rows": [], "threshold": None, "generated": "", "dates": [],
-             "covering": "", "available": []}
+             "covering": "", "available": [], "unreachable": False}
     if not storage.enabled():
         return empty
 
     available = _archive_dates()
+    if available is None:
+        # Unreachable. Saying "no roles" would be a confident lie about a store
+        # that might hold a year of history.
+        return {**empty, "unreachable": True}
     if not available:
         # Nothing archived yet: fall back to the single live set, so an install
         # that published before dated snapshots existed still shows something.
+        if frm or to:
+            # They asked for specific days and the index says none exist.
+            # Answering with the latest run would label it with their dates.
+            return {**empty, "covering": f"{frm or '...'} to {to or '...'}"}
         live = storage.get_json("results", None)
-        if live is storage.MISSING or not isinstance(live, dict):
+        if live is storage.MISSING or live is storage.CORRUPT or not isinstance(live, dict):
             return empty
         rows = live.get("rows") or []
         return {"rows": rows, "threshold": live.get("threshold"),
@@ -1573,17 +1601,24 @@ def _published_rows(frm=None, to=None):
         frm = frm or available[0]
         to = to or today
 
+    if frm and to and frm > to:
+        frm, to = to, frm          # they typed the boxes the other way round
     wanted = [d for d in available if frm <= d <= to]
     if not wanted:
         return {**empty, "available": available,
                 "covering": f"{frm} to {to}" if frm != to else frm}
 
     snapshots = storage.mget_json([f"results:{d}" for d in wanted])
+    if snapshots is storage.MISSING:
+        return {**empty, "available": available, "unreachable": True,
+                "covering": wanted[0] if len(wanted) == 1
+                            else f"{wanted[0]} to {wanted[-1]}"}
+    corrupt = [k for k, v in snapshots.items() if v is storage.CORRUPT]
 
     merged, threshold, generated = {}, None, ""
     for d in wanted:
         snap = snapshots.get(f"results:{d}")
-        if not isinstance(snap, dict):
+        if snap is storage.CORRUPT or not isinstance(snap, dict):
             continue
         if snap.get("threshold") is not None:
             threshold = snap["threshold"]
@@ -1619,7 +1654,8 @@ def _published_rows(frm=None, to=None):
                              r.get("days") if isinstance(r.get("days"), int) else 9999,
                              str(r.get("company", ""))))
     return {"rows": rows, "threshold": threshold, "generated": generated,
-            "dates": wanted, "available": available,
+            "dates": wanted, "available": available, "unreachable": False,
+            "corrupt_days": [k.split(":", 1)[-1] for k in corrupt],
             "covering": wanted[0] if len(wanted) == 1 else f"{wanted[0]} to {wanted[-1]}"}
 
 
@@ -1628,6 +1664,8 @@ def _published_rows(frm=None, to=None):
 def archive_dates():
     """Which days have data, so the picker can bound itself."""
     available = _archive_dates()
+    if available is None:
+        return jsonify(ok=False, error="Could not reach the results store.")
     return jsonify(ok=True, dates=available,
                    today=datetime.now().strftime("%Y-%m-%d"),
                    latest=available[-1] if available else "")
@@ -1650,8 +1688,17 @@ def results():
     # under yesterday's heading. The workbook is the fallback for a machine with
     # no shared storage configured.
     path = _excel_path()
-    if _archive_dates() or not os.path.exists(path):
+    dates_now = _archive_dates()
+    if dates_now is None:
+        return jsonify(ok=False, error=(
+            "Could not reach the results store, so the list is not being shown "
+            "rather than shown short. Try again in a moment."))
+    if dates_now or not os.path.exists(path):
         merged = _published_rows(request.args.get("from"), request.args.get("to"))
+        if merged.get("unreachable"):
+            return jsonify(ok=False, error=(
+                "Could not reach the results store. Nothing is missing - the "
+                "list just cannot be read right now. Try again in a moment."))
         if merged["rows"]:
             return jsonify(ok=True, rows=merged["rows"][:limit],
                            total=len(merged["rows"]),
