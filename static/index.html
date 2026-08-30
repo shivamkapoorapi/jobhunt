@@ -66,7 +66,6 @@
   }
   .navlink:hover{border-color:var(--ink)}
   .navlink.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-  .soon{font-size:7px;color:var(--red);vertical-align:super;letter-spacing:0.12em;margin-left:3px}
   .vdiv{width:1px;height:20px;background:var(--line)}
   .chip-count{
     font-family:var(--mono);font-size:10.5px;letter-spacing:0.08em;color:var(--blue);
@@ -733,9 +732,7 @@
     </div>
     <div class="navlinks">
       <a class="navlink active" href="#home" data-view="home">Home</a>
-      <a class="navlink" href="#">Profile</a>
       <a class="navlink" href="#tracker" data-view="tracker">Tracker<span class="nav-badge hidden" id="navTrackerCount">00</span></a>
-      <a class="navlink" href="#">Matches<span class="soon">SOON</span></a>
       <span class="vdiv" aria-hidden="true"></span>
       <span class="chip-count" id="navCount">000 MATCHES</span>
       <a class="navlink admin-only hidden" id="navAdmin" href="/admin">Admin</a>
@@ -1795,9 +1792,9 @@
 
   window.addEventListener('hashchange', function(){ showView(hashView()); });
 
-  /* "Profile", "Matches" and "Logout" are href="#" placeholders. Without this,
-     clicking one while the tracker is open blanks the hash and silently throws
-     the user back to Home. */
+  /* Logout is the only remaining href="#". Without this, clicking it while the
+     tracker is open blanks the hash and throws the user back to Home before the
+     sign-out request has even been sent. */
   document.addEventListener('click', function(e){
     var a = e.target && e.target.closest ? e.target.closest('a[href="#"]') : null;
     if(a) e.preventDefault();
