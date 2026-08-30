@@ -433,6 +433,27 @@
   .fpop .flinks{display:flex;gap:12px;margin-top:7px}
   .norows{color:var(--muted);padding:14px 0;font-size:13px}
 
+  /* ---------- DATE RANGE ---------- */
+  .datebar{border:1px solid var(--line);background:#fff;padding:11px 12px;margin-bottom:10px}
+  .daterow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .daterow .inp{
+    font-family:var(--mono);font-size:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:6px 8px;width:auto;
+  }
+  .daterow .flab{margin:0}
+  .datenote{
+    margin:9px 0 0;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;
+    color:var(--muted);line-height:1.5;
+  }
+  .seen{
+    font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);
+    border:1px solid var(--line);padding:1px 5px;margin-left:6px;white-space:nowrap;
+  }
+  @media (max-width:640px){
+    .daterow .inp{flex:1 1 132px;font-size:16px}
+    .daterow .fclear{flex:1 1 100%;min-height:40px}
+  }
+
   /* ---------- LAST RUN SUMMARY (read-only view) ---------- */
   .lastrun{margin-bottom:26px}
   .lr-grid{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
@@ -897,6 +918,22 @@
           <button type="button" class="btn btn-ghost" id="trackTop" disabled>Track top 20 &#8594;</button>
         </div>
         <div id="rankOut"></div>
+        <div class="datebar" id="dateBar">
+          <div class="fquick" id="dateQuick">
+            <button type="button" data-range="today" class="on">Today</button>
+            <button type="button" data-range="2">Yesterday &rarr; today</button>
+            <button type="button" data-range="7">Last 7 days</button>
+            <button type="button" data-range="all">Everything</button>
+          </div>
+          <div class="daterow">
+            <label class="flab" for="dFrom">From</label>
+            <input type="date" class="inp" id="dFrom">
+            <label class="flab" for="dTo">To</label>
+            <input type="date" class="inp" id="dTo">
+            <button type="button" class="fclear" id="dApply">Show</button>
+          </div>
+          <p class="datenote" id="dateNote"></p>
+        </div>
         <div class="fbar">
           <input type="search" class="srch" id="fSearch" placeholder="Search company, title or location..." autocomplete="off">
           <span class="fcount" id="fCount"></span>
@@ -2213,6 +2250,9 @@
       var days = (typeof r.days === 'number' && isFinite(r.days)) ? Math.round(r.days) : null;
       var daysTxt = days === null ? '\u2014' : (days === 0 ? 'today' : days + 'd');
       var freshTag = r.fresh ? '<span class="tag-fresh">FRESH</span>' : '';
+      var seenTag = (Array.isArray(r.seen) && r.seen.length > 1)
+        ? '<span class="seen" title="' + escapeHtml(r.seen.join(', ')) + '">' +
+          r.seen.length + ' days</span>' : '';
       var blocked = r.eligibility === 'NO';
       var blockTag = blocked
         ? '<span class="tag-blocked" title="posting states a hard blocker \u2014 see the Excel">BLOCKED</span>'
@@ -2224,7 +2264,7 @@
       return '<tr' + (blocked ? ' class="row-blocked"' : '') + '>' +
         '<td class="fit"><span class="dot' + fitClass(r.fit) + '"></span>' +
           escapeHtml(hasFit(r.fit) ? r.fit : '--') + '</td>' +
-        '<td class="posted">' + escapeHtml(daysTxt) + freshTag + '</td>' +
+        '<td class="posted">' + escapeHtml(daysTxt) + freshTag + seenTag + '</td>' +
         '<td class="co">' + escapeHtml(r.company || '') + '</td>' +
         '<td>' + titleCell + blockTag + why + '</td>' +
         '<td class="loc">' + escapeHtml(r.location || '') + '</td>' +
@@ -2445,6 +2485,38 @@
     renderRank();
   }
 
+  var dq = $('dateQuick');
+  if(dq){
+    dq.addEventListener('click', function(e){
+      var b = e.target && e.target.closest ? e.target.closest('button[data-range]') : null;
+      if(!b) return;
+      dq.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      var r = b.getAttribute('data-range');
+      var today = new Date();
+      if(r === 'today'){ dateRange = {from: '', to: ''}; }
+      else if(r === 'all'){ dateRange = {from: '1970-01-01', to: ymd(today)}; }
+      else {
+        var back = new Date(today.getTime());
+        back.setDate(back.getDate() - (parseInt(r, 10) - 1));
+        dateRange = {from: ymd(back), to: ymd(today)};
+      }
+      var f = $('dFrom'), t = $('dTo');
+      if(f) f.value = dateRange.from === '1970-01-01' ? '' : dateRange.from;
+      if(t) t.value = dateRange.to;
+      loadResults();
+    });
+  }
+  var dApply = $('dApply');
+  if(dApply){
+    dApply.addEventListener('click', function(){
+      var f = $('dFrom'), t = $('dTo');
+      dateRange = {from: (f && f.value) || '', to: (t && t.value) || ''};
+      if(dq) dq.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      loadResults();
+    });
+  }
+
   var fSearchEl = $('fSearch');
   if(fSearchEl){
     fSearchEl.addEventListener('input', function(){
@@ -2475,13 +2547,46 @@
     el.textContent = (t > shown) ? '  ·  ' + shown + ' of ' + t : '  ·  ' + shown;
   }
 
+  var dateRange = {from: '', to: ''};      /* empty = server default (today) */
+
+  function rangeQuery(){
+    var q = ['limit=' + RANK_LIMIT];
+    if(dateRange.from) q.push('from=' + encodeURIComponent(dateRange.from));
+    if(dateRange.to)   q.push('to='   + encodeURIComponent(dateRange.to));
+    return '/api/results?' + q.join('&');
+  }
+
+  function ymd(d){
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) +
+           '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function setDateNote(d){
+    var el = $('dateNote');
+    if(!el) return;
+    var bits = [];
+    if(d.covering === 'latest'){
+      bits.push('Showing the most recent search.');
+    } else if(d.covering){
+      bits.push('Showing ' + fmtWhen(d.covering.split(' to ')[0]) +
+                (d.covering.indexOf(' to ') > -1
+                   ? ' to ' + fmtWhen(d.covering.split(' to ')[1]) : ''));
+    }
+    if(Array.isArray(d.available) && d.available.length){
+      bits.push(d.available.length + (d.available.length === 1 ? ' day' : ' days') +
+                ' stored, back to ' + fmtWhen(d.available[0]));
+    }
+    el.textContent = bits.join('   ·   ');
+  }
+
   async function loadResults(){
     try{
-      var d = await getJSON('/api/results?limit=' + RANK_LIMIT);
+      var d = await getJSON(rangeQuery());
       if(d && d.ok){
         rankRows = Array.isArray(d.rows) ? d.rows : [];
         renderRank();
         showRankTotal(d.total);
+        setDateNote(d);
         var th = $('thVal');
         if(th && th.value === '' && document.activeElement !== th &&
            typeof d.threshold !== 'undefined' && d.threshold !== null){

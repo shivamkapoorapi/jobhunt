@@ -1817,6 +1817,23 @@ def publish_results(keep, workbook_path):
         }
         log("-" * 58)
         log(f"PUBLISHING to {storage.describe()}")
+
+        # Keep a dated snapshot as well as the live set. Without this every run
+        # erases the last one, so a role that closed on Tuesday is simply gone
+        # and there is no way to look back at what was open on a given day.
+        today = datetime.now().strftime("%Y-%m-%d")
+        if storage.set_json(f"results:{today}", payload):
+            dates = storage.get_json("results:dates", [])
+            if dates is storage.MISSING or not isinstance(dates, list):
+                dates = []
+            if today not in dates:
+                dates.append(today)
+            dates = sorted(set(dates))[-400:]
+            storage.set_json("results:dates", dates)
+            log(f"  archive    saved under {today}  ({len(dates)} days kept)")
+        else:
+            log(f"  archive    FAILED for {today}")
+
         if storage.set_json("results", payload):
             scored = sum(1 for r in rows if r["fit"] is not None)
             log(f"  roles      {len(rows)} sent  ({scored} AI-scored)")

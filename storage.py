@@ -160,6 +160,28 @@ def keys(pattern="*"):
     return [k[n:] if k.startswith(PREFIX) else k for k in res]
 
 
+def mget_json(names):
+    """Fetch many keys in one round trip.
+
+    A date range spans one key per day. Doing that as N separate GETs turns a
+    month's history into 30 sequential HTTP calls; MGET makes it one.
+    """
+    if not enabled() or not names:
+        return {}
+    res = _command("MGET", *[f"{PREFIX}{n}" for n in names])
+    if res is MISSING or not isinstance(res, list):
+        return {}
+    out = {}
+    for name, raw in zip(names, res):
+        if raw is None:
+            continue
+        try:
+            out[name] = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
 # --------------------------------------------------------------------------
 # binary (the .xlsx)
 # --------------------------------------------------------------------------

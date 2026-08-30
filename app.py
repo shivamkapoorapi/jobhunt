@@ -1526,6 +1526,113 @@ def _link_target(cells, idx):
     return ""
 
 
+def _archive_dates():
+    """Every day that has a stored snapshot, oldest first."""
+    if not storage.enabled():
+        return []
+    d = storage.get_json("results:dates", [])
+    if d is storage.MISSING or not isinstance(d, list):
+        return []
+    return sorted(str(x) for x in d)
+
+
+def _published_rows(frm=None, to=None):
+    """Merge the dated snapshots covering [frm, to].
+
+    Defaults to today. If today has no run yet, falls back to the most recent
+    day that does -- showing an empty page because nobody has run a search since
+    midnight would look broken rather than accurate.
+
+    A role open on several days is one row, tagged with the days it appeared,
+    so a week's range is a list of distinct jobs and not the same job seven
+    times.
+    """
+    empty = {"rows": [], "threshold": None, "generated": "", "dates": [],
+             "covering": "", "available": []}
+    if not storage.enabled():
+        return empty
+
+    available = _archive_dates()
+    if not available:
+        # Nothing archived yet: fall back to the single live set, so an install
+        # that published before dated snapshots existed still shows something.
+        live = storage.get_json("results", None)
+        if live is storage.MISSING or not isinstance(live, dict):
+            return empty
+        rows = live.get("rows") or []
+        return {"rows": rows, "threshold": live.get("threshold"),
+                "generated": live.get("generated", ""), "dates": [],
+                "covering": "latest", "available": []}
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    frm = (frm or "").strip()
+    to = (to or "").strip()
+    if not frm and not to:
+        frm = to = today if today in available else available[-1]
+    else:
+        frm = frm or available[0]
+        to = to or today
+
+    wanted = [d for d in available if frm <= d <= to]
+    if not wanted:
+        return {**empty, "available": available,
+                "covering": f"{frm} to {to}" if frm != to else frm}
+
+    snapshots = storage.mget_json([f"results:{d}" for d in wanted])
+
+    merged, threshold, generated = {}, None, ""
+    for d in wanted:
+        snap = snapshots.get(f"results:{d}")
+        if not isinstance(snap, dict):
+            continue
+        if snap.get("threshold") is not None:
+            threshold = snap["threshold"]
+        generated = snap.get("generated", generated) or generated
+        for r in snap.get("rows") or []:
+            # The apply link identifies a posting; company+title does not.
+            # Red Ventures lists the same "Associate Product Manager - AI" in
+            # NYC and in Charlotte -- two real jobs she could apply to
+            # separately, which a company+title key silently merges into one.
+            key = str(r.get("link") or "").strip().lower()
+            if not key:
+                key = (str(r.get("company", "")).lower().strip() + "|"
+                       + str(r.get("title", "")).lower().strip() + "|"
+                       + str(r.get("location", "")).lower().strip())
+            prev = merged.get(key)
+            if prev is None:
+                row = dict(r)
+                row["seen"] = [d]
+                merged[key] = row
+            else:
+                prev["seen"].append(d)
+                # keep the best score and the freshest posting age we ever saw
+                if isinstance(r.get("fit"), int) and (
+                        not isinstance(prev.get("fit"), int) or r["fit"] > prev["fit"]):
+                    prev["fit"] = r["fit"]
+                    prev["why"] = r.get("why", prev.get("why", ""))
+                if isinstance(r.get("days"), int) and (
+                        not isinstance(prev.get("days"), int) or r["days"] < prev["days"]):
+                    prev["days"] = r["days"]
+
+    rows = list(merged.values())
+    rows.sort(key=lambda r: (-(r.get("fit") if isinstance(r.get("fit"), int) else -1),
+                             r.get("days") if isinstance(r.get("days"), int) else 9999,
+                             str(r.get("company", ""))))
+    return {"rows": rows, "threshold": threshold, "generated": generated,
+            "dates": wanted, "available": available,
+            "covering": wanted[0] if len(wanted) == 1 else f"{wanted[0]} to {wanted[-1]}"}
+
+
+@app.route("/api/dates")
+@login_required
+def archive_dates():
+    """Which days have data, so the picker can bound itself."""
+    available = _archive_dates()
+    return jsonify(ok=True, dates=available,
+                   today=datetime.now().strftime("%Y-%m-%d"),
+                   latest=available[-1] if available else "")
+
+
 @app.route("/api/results")
 @login_required
 def results():
@@ -1537,23 +1644,33 @@ def results():
     limit = max(1, min(MAX_LIMIT, limit))
     fresh_days = _fresh_days()
 
+    # The dated archive comes first whenever there is one. It is the only source
+    # that can answer "what was open last Tuesday" -- the local workbook holds a
+    # single run and would silently ignore a date range, returning today's rows
+    # under yesterday's heading. The workbook is the fallback for a machine with
+    # no shared storage configured.
     path = _excel_path()
-    if not os.path.exists(path):
-        # No local workbook. On a hosted deployment there never is one -- the
-        # search runs on someone's machine and publishes the rows here.
-        published = storage.get_json("results", None) if storage.enabled() else None
-        if published is storage.MISSING:
-            published = None
-        if isinstance(published, dict) and published.get("rows"):
-            rows = published["rows"][:limit]
-            return jsonify(ok=True, rows=rows,
-                           total=published.get("total", len(published["rows"])),
-                           threshold=published.get("threshold"),
-                           generated=published.get("generated", ""),
+    if _archive_dates() or not os.path.exists(path):
+        merged = _published_rows(request.args.get("from"), request.args.get("to"))
+        if merged["rows"]:
+            return jsonify(ok=True, rows=merged["rows"][:limit],
+                           total=len(merged["rows"]),
+                           threshold=merged["threshold"],
+                           generated=merged["generated"],
+                           dates=merged["dates"],
+                           covering=merged["covering"],
+                           available=merged["available"],
                            source="published")
-        return jsonify(ok=False, error=(
-            "No results yet. Run a search on the machine that has the app "
-            "installed - `python jobhunt.py run` - and they appear here."))
+        if not os.path.exists(path):
+            return jsonify(ok=False, error=(
+                "No results yet. Run a search on the machine that has the app "
+                "installed - `python jobhunt.py run` - and they appear here."))
+        # An archive exists but this range is empty: say so plainly instead of
+        # falling through and showing another day's rows as if they were these.
+        if request.args.get("from") or request.args.get("to"):
+            return jsonify(ok=True, rows=[], total=0,
+                           dates=[], covering=merged["covering"],
+                           available=merged["available"], source="published")
 
     wb, rows = None, []
     try:
