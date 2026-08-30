@@ -1,0 +1,35 @@
+# What NOT to upload to Vercel.
+#
+# `vercel --prod` uploads the working directory from disk and does NOT consult
+# .gitignore the way `git push` does, so a file can be absent from GitHub and
+# still end up inside the deployment. That is how a local job_matches_*.xlsx
+# got bundled and served instead of the live data in Redis.
+#
+# The deployment needs source only. Everything with data or secrets in it
+# belongs in Redis or on the machine that runs the search.
+
+# secrets
+.env
+.env.*
+
+# personal data
+data/
+uploads/
+profile.json
+tracker.json
+history.json
+state.json
+*.pdf
+*.docx
+
+# generated output - the hosted site reads these from Redis
+job_matches_*.xlsx
+sample_output.xlsx
+*.log
+
+# local noise
+__pycache__/
+*.pyc
+.vercel/
+.git/
+vercel_env.sh
