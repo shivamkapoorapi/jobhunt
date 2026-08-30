@@ -1691,6 +1691,8 @@ def _run_locked(_args):
         log("! Run finished INCOMPLETE - a source failed; see the Run Report "
             "sheet and rerun to recover")
 
+    publish_results(keep, saved[0] if saved else "")
+
     record_run_history(
         rows=rows, keep=keep, lowfit=lowfit, needs_check=needs_check,
         quarantine=quarantine, new_keys=new_keys,
@@ -1699,6 +1701,77 @@ def _run_locked(_args):
 
     log("Run complete")
     log("=" * 58)
+
+
+# --------------------------------------------------------------------------
+# Publishing to shared storage
+# --------------------------------------------------------------------------
+
+def publish_results(keep, workbook_path):
+    """Push this run's rows (and the workbook) to the shared store.
+
+    This is the whole point of the store: the search needs 7-15 minutes, which
+    no serverless function will give it, so it runs here and the hosted site
+    reads what it left behind. Best effort throughout -- the spreadsheet on
+    this machine is already written by now, and a store being down must never
+    turn a successful run into a failed one.
+    """
+    try:
+        import storage
+    except ImportError:
+        return
+    if not storage.enabled():
+        return
+
+    try:
+        rows = []
+        for r in keep:
+            rows.append({
+                "fit": r.get("AI Fit") if isinstance(r.get("AI Fit"), int) else None,
+                "score": r.get("Score", 0),
+                "company": r.get("Company", ""),
+                "title": r.get("Title", ""),
+                "location": r.get("Location", ""),
+                "why": r.get("AI Verdict", ""),
+                "link": r.get("Apply Link", ""),
+                "level": r.get("Level", ""),
+                "days": days_since(r.get("Posted")),
+                "fresh": bool(r.get("Fresh")),
+                "eligibility": r.get("Eligibility", "UNKNOWN"),
+            })
+        payload = {
+            "rows": rows,
+            "total": len(rows),
+            "threshold": MIN_AI_FIT,
+            "generated": f"{datetime.now():%Y-%m-%d %H:%M}",
+            "machine": platform.node(),
+        }
+        if storage.set_json("results", payload):
+            log(f"Published {len(rows)} roles to shared storage ({storage.describe()})")
+        else:
+            log("  ! could not publish results - the hosted site keeps the older set")
+
+        # history and profile travel with them so the site's trends and the
+        # attached-resume panel are not stuck on whatever it last saw
+        storage.set_json("history", {"runs": load_history()})
+        try:
+            with open(os.path.join(HERE, "profile.json"), encoding="utf-8-sig") as f:
+                storage.set_json("profile", json.load(f))
+        except (OSError, ValueError):
+            pass
+
+        if workbook_path and os.path.exists(workbook_path):
+            with open(workbook_path, "rb") as f:
+                blob = f.read()
+            ok, why = storage.set_bytes("workbook", blob)
+            if ok:
+                log(f"Published the workbook ({len(blob)//1024} KB) for download")
+            else:
+                log(f"  ! workbook not published: {why}")
+                log("    the roles are still on the site; only the download needs "
+                    "this machine")
+    except Exception as e:
+        log(f"  ! publishing failed ({type(e).__name__}) - local results are fine")
 
 
 # --------------------------------------------------------------------------

@@ -25,6 +25,8 @@ import os
 import secrets
 import threading
 import time
+
+import storage
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -65,7 +67,33 @@ _ensure_dir(USER_DIR)
 # json helpers
 # --------------------------------------------------------------------------
 
+def _store_key(path):
+    """Map a file path to a store key, so both backends address the same thing.
+
+    data/users.json            -> users
+    data/activity.json         -> activity
+    data/users/<uid>/x.json    -> user:<uid>:x
+    """
+    path = os.path.abspath(path)
+    stem = os.path.splitext(os.path.basename(path))[0]
+    parent = os.path.dirname(path)
+    if os.path.basename(os.path.dirname(parent)) == "users":
+        return "user:%s:%s" % (os.path.basename(parent), stem)
+    return stem
+
+
 def _read_json(path, default):
+    """Shared store first, local file second.
+
+    The fallback is deliberate and one-directional: if the store is unreachable
+    we serve whatever this machine last wrote rather than reporting an empty
+    account list, which downstream code cannot tell apart from "no accounts
+    exist" and would happily overwrite.
+    """
+    if storage.enabled():
+        got = storage.get_json(_store_key(path), storage.MISSING)
+        if got is not storage.MISSING:
+            return got
     try:
         with open(path, encoding="utf-8-sig") as f:
             return json.load(f)
@@ -74,13 +102,21 @@ def _read_json(path, default):
 
 
 def _write_json_atomic(path, data):
-    tmp = path + ".tmp"
-    _ensure_dir(os.path.dirname(path))
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    """Write both places. The local copy keeps an offline machine working and
+    means switching the store off later loses nothing."""
+    wrote_remote = storage.set_json(_store_key(path), data) if storage.enabled() else False
+    try:
+        tmp = path + ".tmp"
+        _ensure_dir(os.path.dirname(path))
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except OSError:
+        # Read-only disk (serverless). Fine as long as the store took it.
+        if not wrote_remote:
+            raise
 
 
 def _now():

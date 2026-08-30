@@ -31,6 +31,8 @@ from werkzeug.utils import secure_filename
 
 import openpyxl
 
+import storage
+
 # --------------------------------------------------------------------------
 # paths
 # --------------------------------------------------------------------------
@@ -141,10 +143,24 @@ def track(kind, detail=None):
 # small helpers: config, .env, excel paths
 # --------------------------------------------------------------------------
 
+def _store_key(path):
+    """File path -> shared-store key. Mirrors auth._store_key."""
+    path = os.path.abspath(path)
+    stem = os.path.splitext(os.path.basename(path))[0]
+    parent = os.path.dirname(path)
+    if os.path.basename(os.path.dirname(parent)) == "users":
+        return "user:%s:%s" % (os.path.basename(parent), stem)
+    return stem
+
+
 def _read_json(path, default=None):
     # utf-8-sig, not utf-8: a config.json or profile.json re-saved by Notepad
     # on Windows carries a BOM, which makes json.load raise and would silently
     # blank out output_dir / the whole profile.
+    if storage.enabled():
+        got = storage.get_json(_store_key(path), storage.MISSING)
+        if got is not storage.MISSING:
+            return got
     try:
         with open(path, encoding="utf-8-sig", errors="replace") as f:
             return json.load(f)
@@ -160,6 +176,7 @@ def _write_json_atomic(path, data):
     output_dir and the saved threshold with it. os.replace is only atomic on
     one filesystem, hence the temp file living in the same directory.
     """
+    wrote_remote = storage.set_json(_store_key(path), data) if storage.enabled() else False
     tmp = path + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
@@ -173,7 +190,10 @@ def _write_json_atomic(path, data):
             os.remove(tmp)
         except OSError:
             pass
-        raise
+        # A read-only disk is expected on serverless; only a failure on BOTH
+        # backends is a real error.
+        if not wrote_remote:
+            raise
 
 
 # Both writers of config.json - the resume upload's keyword merge and the fit
@@ -1271,6 +1291,14 @@ def state():
 def download():
     path = _excel_path()
     if not os.path.exists(path):
+        blob = storage.get_bytes("workbook") if storage.enabled() else None
+        if blob:
+            from flask import Response
+            return Response(blob, mimetype=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"),
+                headers={"Content-Disposition":
+                         f'attachment; filename="{EXCEL_NAME}"'})
         return jsonify(ok=False,
                        error="No spreadsheet yet - run a search first."), 404
     try:
@@ -1501,7 +1529,21 @@ def results():
 
     path = _excel_path()
     if not os.path.exists(path):
-        return jsonify(ok=False, error="No spreadsheet yet - run a search first.")
+        # No local workbook. On a hosted deployment there never is one -- the
+        # search runs on someone's machine and publishes the rows here.
+        published = storage.get_json("results", None) if storage.enabled() else None
+        if published is storage.MISSING:
+            published = None
+        if isinstance(published, dict) and published.get("rows"):
+            rows = published["rows"][:limit]
+            return jsonify(ok=True, rows=rows,
+                           total=published.get("total", len(published["rows"])),
+                           threshold=published.get("threshold"),
+                           generated=published.get("generated", ""),
+                           source="published")
+        return jsonify(ok=False, error=(
+            "No results yet. Run a search on the machine that has the app "
+            "installed - `python jobhunt.py run` - and they appear here."))
 
     wb, rows = None, []
     try:
