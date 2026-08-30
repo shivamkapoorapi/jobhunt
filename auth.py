@@ -278,9 +278,55 @@ def ensure_admin():
         return user
 
 
+def ensure_local_users():
+    """Non-admin password accounts, from USER1_*, USER2_* ... in the environment.
+
+    Same storage and hashing as the admin; the only difference is is_admin.
+    Numbered rather than a single JSON blob because these are set by hand in a
+    hosting panel, where a quoted JSON array is easy to get subtly wrong.
+    """
+    made = []
+    for n in range(1, 9):
+        uname = os.environ.get(f"USER{n}_USERNAME", "").strip().lower()
+        if not uname:
+            continue
+        pw_hash = os.environ.get(f"USER{n}_PASSWORD_HASH", "").strip()
+        if not pw_hash:
+            plain = os.environ.get(f"USER{n}_PASSWORD", "").strip()
+            if not plain:
+                continue
+            pw_hash = hash_password(plain)
+        uid = _uid_for("local", uname)
+        with _lock:
+            users = _load_users()
+            if any(u.get("id") == uid for u in users):
+                continue
+            users.append({
+                "id": uid,
+                "email": os.environ.get(f"USER{n}_EMAIL", uname + "@local").strip(),
+                "name": os.environ.get(f"USER{n}_NAME", uname).strip(),
+                "picture": "",
+                "provider": "local",
+                "username": uname,
+                "password_hash": pw_hash,
+                "is_admin": False,
+                "created": _now(),
+                "last_login": "",
+                "last_seen": "",
+                "login_count": 0,
+            })
+            try:
+                _save_users(users)
+            except OSError:
+                pass
+        made.append(uname)
+    return made
+
+
 def check_local_login(username, password):
     username = (username or "").strip().lower()
     ensure_admin()
+    ensure_local_users()
     with _lock:
         users = _load_users()
         for u in users:
@@ -476,6 +522,13 @@ GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 
 
 def google_configured():
+    """Credentials present AND not switched off.
+
+    HIDE_GOOGLE_LOGIN=1 hides the button without deleting the OAuth code, so
+    turning it back on later is one environment variable, not a rewrite.
+    """
+    if os.environ.get("HIDE_GOOGLE_LOGIN", "").strip() == "1":
+        return False
     return bool(os.environ.get("GOOGLE_CLIENT_ID", "").strip()
                 and os.environ.get("GOOGLE_CLIENT_SECRET", "").strip())
 

@@ -150,7 +150,12 @@
                     'variables, then redeploy.');
       }
       if(d && !d.google){
+        /* Hidden rather than shown-disabled: a greyed-out button that can never
+           work is just a dead end on the one screen a user must get past. */
         var b = $('gbtn');
+        b.style.display = 'none';
+        var rule = document.querySelector('.rule');
+        if(rule) rule.style.display = 'none';
         b.classList.add('off');
         b.removeAttribute('href');
         $('gtxt').textContent = 'Google sign-in not configured';

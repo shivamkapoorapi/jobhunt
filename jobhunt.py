@@ -1456,6 +1456,7 @@ def _run_locked(_args):
     os.makedirs(out_dir, exist_ok=True)
     log("=" * 58)
     log("Starting job search run (US only, verified links)")
+    preflight(cfg)
 
     raw, source_outcomes = [], []
     boards = list(cfg["companies"])
@@ -1704,6 +1705,74 @@ def _run_locked(_args):
 
 
 # --------------------------------------------------------------------------
+# Preflight
+# --------------------------------------------------------------------------
+
+def preflight(cfg):
+    """Say what this run is about to do, and check the two things that can
+    silently spoil it: the Gemini key and the shared store.
+
+    Checked BEFORE the 7-minute fetch, not after. Discovering a dead key at the
+    ranking stage means the whole sweep produced an unranked list.
+    """
+    log("-" * 58)
+
+    # 1. Gemini - the key is what decides whether ranking happens at all
+    try:
+        import ai_rank
+        key = ai_rank._api_key()
+    except Exception:
+        key = None
+    if not key:
+        log("  GEMINI    no API key found - roles will be keyword-ranked only")
+    else:
+        try:
+            reply = ai_rank._call(key, 'Reply with exactly: OK', retries=1, timeout=20)
+            ok = "OK" in (reply or "")
+            log(f"  GEMINI    key valid, model {ai_rank.MODEL} responded"
+                if ok else
+                f"  GEMINI    key answered oddly ({str(reply)[:40]!r}) - continuing")
+        except Exception as e:
+            name = type(e).__name__
+            log(f"  GEMINI    key present but unreachable ({name})")
+            log("            roles will be keyword-ranked only this run")
+
+    # 2. Shared storage - whether results reach the website
+    try:
+        import storage
+        if storage.enabled():
+            ok, msg = storage.ping()
+            log(f"  STORAGE   {msg}" if ok
+                else f"  STORAGE   configured but unreachable - {msg}")
+            if ok:
+                log("            results will publish to the website when this finishes")
+        else:
+            log("  STORAGE   local files only - the website will not see this run")
+            log("            set KV_REST_API_URL and KV_REST_API_TOKEN to publish")
+    except Exception as e:
+        log(f"  STORAGE   could not check ({type(e).__name__})")
+
+    # 3. What this run will actually keep
+    log(f"  PROFILE   {_profile_name()}")
+    log(f"  CUTOFF    fit {MIN_AI_FIT}+ reaches the apply list"
+        f"   |  fresh = last {cfg.get('fresh_days', 2)} days"
+        f"   |  max age {cfg.get('max_age_days', 45)} days")
+    log(f"  BOARDS    {len(cfg.get('companies', []))} company job boards")
+    log("-" * 58)
+
+
+def _profile_name():
+    try:
+        with open(os.path.join(HERE, "profile.json"), encoding="utf-8-sig") as f:
+            p = json.load(f)
+        who = p.get("name") or "unnamed"
+        res = p.get("resume_file")
+        return f"{who}" + (f"  (from {res})" if res else "")
+    except (OSError, ValueError):
+        return "no profile.json - using the built-in default rubric"
+
+
+# --------------------------------------------------------------------------
 # Publishing to shared storage
 # --------------------------------------------------------------------------
 
@@ -1746,30 +1815,43 @@ def publish_results(keep, workbook_path):
             "generated": f"{datetime.now():%Y-%m-%d %H:%M}",
             "machine": platform.node(),
         }
+        log("-" * 58)
+        log(f"PUBLISHING to {storage.describe()}")
         if storage.set_json("results", payload):
-            log(f"Published {len(rows)} roles to shared storage ({storage.describe()})")
+            scored = sum(1 for r in rows if r["fit"] is not None)
+            log(f"  roles      {len(rows)} sent  ({scored} AI-scored)")
         else:
-            log("  ! could not publish results - the hosted site keeps the older set")
+            log("  roles      FAILED - the website keeps the previous set")
+            log("             (nothing is lost; this machine's Excel is fine)")
 
         # history and profile travel with them so the site's trends and the
         # attached-resume panel are not stuck on whatever it last saw
-        storage.set_json("history", {"runs": load_history()})
+        hist = load_history()
+        log(f"  history    {len(hist)} runs sent"
+            if storage.set_json("history", {"runs": hist})
+            else "  history    FAILED")
         try:
             with open(os.path.join(HERE, "profile.json"), encoding="utf-8-sig") as f:
-                storage.set_json("profile", json.load(f))
+                prof = json.load(f)
+            log(f"  profile    {prof.get('name', 'sent')}"
+                if storage.set_json("profile", prof) else "  profile    FAILED")
         except (OSError, ValueError):
-            pass
+            log("  profile    skipped - no readable profile.json")
 
         if workbook_path and os.path.exists(workbook_path):
             with open(workbook_path, "rb") as f:
                 blob = f.read()
             ok, why = storage.set_bytes("workbook", blob)
             if ok:
-                log(f"Published the workbook ({len(blob)//1024} KB) for download")
+                log(f"  workbook   {len(blob)//1024} KB sent - downloadable from the site")
             else:
-                log(f"  ! workbook not published: {why}")
-                log("    the roles are still on the site; only the download needs "
-                    "this machine")
+                log(f"  workbook   NOT sent - {why}")
+                log("             roles are still on the site; only the download "
+                    "needs this machine")
+        else:
+            log("  workbook   skipped - no file was saved this run")
+        log(f"  website    https://jobhunt-tau-seven.vercel.app  is now showing this run")
+        log("-" * 58)
     except Exception as e:
         log(f"  ! publishing failed ({type(e).__name__}) - local results are fine")
 
@@ -1777,6 +1859,34 @@ def publish_results(keep, workbook_path):
 # --------------------------------------------------------------------------
 # Run history
 # --------------------------------------------------------------------------
+
+def _load_dotenv():
+    """Read .env into the environment.
+
+    app.py already did this; the CLI did not, so `python jobhunt.py run` could
+    not see KV_REST_API_URL and silently skipped publishing - the run looked
+    perfect and the website stayed on yesterday's roles. Real environment
+    variables win, so a scheduled task or CI can override the file.
+    """
+    try:
+        with open(os.path.join(HERE, ".env"), encoding="utf-8-sig",
+                  errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[7:].lstrip()
+                name, _, val = line.partition("=")
+                name = name.strip()
+                if name and name not in os.environ:
+                    os.environ[name] = val.strip().strip('"').strip("'")
+    except OSError:
+        pass
+
+
+_load_dotenv()
+
 
 HISTORY_PATH = os.path.join(HERE, "history.json")
 HISTORY_MAX = 400

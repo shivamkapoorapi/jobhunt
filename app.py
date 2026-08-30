@@ -114,6 +114,7 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=14),
 )
 auth.ensure_admin()
+auth.ensure_local_users()
 
 # Set to "1" to run the old single-user way with no login at all.
 AUTH_DISABLED = os.environ.get("DISABLE_AUTH", "").strip() == "1"
@@ -1274,7 +1275,16 @@ def state():
     excel = _excel_info()
     with _lock:
         running = _run["running"]
+    u = me() or {}
+    # The setup steps (API key, resume, run) only make sense where a search can
+    # actually happen: the machine with the code, driven by whoever owns it.
+    # On the hosted site nobody can run one, so showing three dead steps just
+    # invites clicks that cannot work.
+    show_setup = (not IS_SERVERLESS) and bool(u.get("is_admin"))
     return jsonify(
+        show_setup=show_setup,
+        serverless=IS_SERVERLESS,
+        is_admin=bool(u.get("is_admin")),
         has_key=bool(_env_key()),
         has_profile=profile is not None,
         has_excel=excel is not None,
@@ -1885,6 +1895,39 @@ def history():
     return jsonify(ok=True, runs=sel, days=days_list,
                    total_runs=len(runs), today=today,
                    first_date=(min(str(r.get("date") or "") for r in runs) if runs else ""))
+
+
+@app.route("/api/lastrun")
+@login_required
+def lastrun():
+    """What the read-only view shows in place of the setup steps: how many
+    roles the last search found, and when it ran."""
+    runs = _history_runs()
+    runs.sort(key=lambda r: str(r.get("id") or r.get("date") or ""), reverse=True)
+    latest = runs[0] if runs else None
+
+    published = storage.get_json("results", None) if storage.enabled() else None
+    if published is storage.MISSING:
+        published = None
+
+    total = None
+    if isinstance(published, dict):
+        total = published.get("total")
+    if total is None and latest:
+        total = latest.get("ready")
+
+    return jsonify(
+        ok=True,
+        roles=total,
+        when=(published or {}).get("generated") or (latest or {}).get("finished", ""),
+        date=(latest or {}).get("date", ""),
+        time=(latest or {}).get("time", ""),
+        new=(latest or {}).get("new"),
+        threshold=(published or {}).get("threshold") or (latest or {}).get("threshold"),
+        incomplete=bool((latest or {}).get("incomplete")),
+        machine=(published or {}).get("machine", ""),
+        runs=len(runs),
+    )
 
 
 @app.route("/api/threshold")

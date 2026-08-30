@@ -1,5 +1,6 @@
 # Secrets and personal data — never commit these
 .env
+.env.*
 profile.json
 tracker.json
 uploads/
@@ -21,3 +22,5 @@ history.json
 *.docx
 !static/**
 sample_output.xlsx
+.vercel
+.env*

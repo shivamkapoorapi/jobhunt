@@ -432,6 +432,27 @@
   }
   .fpop .flinks{display:flex;gap:12px;margin-top:7px}
   .norows{color:var(--muted);padding:14px 0;font-size:13px}
+
+  /* ---------- LAST RUN SUMMARY (read-only view) ---------- */
+  .lastrun{margin-bottom:26px}
+  .lr-grid{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .lr-main{flex:0 0 auto}
+  .lr-num{display:block;font-family:var(--serif);font-size:76px;line-height:.95;color:var(--ink)}
+  .lr-lab{
+    display:block;margin-top:6px;font-family:var(--mono);font-size:10px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  }
+  .lr-meta{flex:1 1 240px;min-width:0;border-left:1px solid var(--line);padding-left:26px}
+  .lr-row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .lr-row:last-child{border-bottom:0}
+  .lr-k{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .lr-v{font-family:var(--mono);font-size:12.5px;color:var(--ink);text-align:right}
+  .lr-note{margin:14px 0 0;font-size:13px;color:var(--muted);line-height:1.55}
+  @media (max-width:640px){
+    .lr-grid{gap:18px}
+    .lr-num{font-size:56px}
+    .lr-meta{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px;flex:1 1 100%}
+  }
   .extlink{
     color:var(--blue);text-decoration:none;border-bottom:1px solid var(--blue);
   }
@@ -707,11 +728,29 @@
 
   <section class="view" id="viewHome">
   <header class="hero">
-    <p class="eyebrow">Resume in &middot; shortlist out</p>
-    <h1>Four steps between your resume and a ranked Excel file.</h1>
-    <p class="sub">JobHunt reads your resume, builds a scoring profile from it, sweeps roughly 83 company job boards, verifies every link, and hands back a ranked spreadsheet. Work through the steps below in order.</p>
+    <p class="eyebrow" id="heroEyebrow">Resume in &middot; shortlist out</p>
+    <h1 id="heroTitle">Four steps between your resume and a ranked Excel file.</h1>
+    <p class="sub" id="heroSub">JobHunt reads your resume, builds a scoring profile from it, sweeps roughly 83 company job boards, verifies every link, and hands back a ranked spreadsheet. Work through the steps below in order.</p>
     <div id="bootErr"></div>
   </header>
+
+  <!-- Shown instead of the setup steps for anyone who cannot run a search. -->
+  <section class="card lastrun hidden" id="lastRunCard">
+    <p class="eyebrow">Latest search</p>
+    <div class="lr-grid">
+      <div class="lr-main">
+        <span class="lr-num" id="lrRoles">&mdash;</span>
+        <span class="lr-lab">roles matched your resume</span>
+      </div>
+      <div class="lr-meta">
+        <div class="lr-row"><span class="lr-k">Last run</span><span class="lr-v" id="lrWhen">&mdash;</span></div>
+        <div class="lr-row"><span class="lr-k">New that run</span><span class="lr-v" id="lrNew">&mdash;</span></div>
+        <div class="lr-row"><span class="lr-k">Fit cutoff</span><span class="lr-v" id="lrCut">&mdash;</span></div>
+        <div class="lr-row"><span class="lr-k">Searches so far</span><span class="lr-v" id="lrRuns">&mdash;</span></div>
+      </div>
+    </div>
+    <p class="lr-note" id="lrNote"></p>
+  </section>
 
   <main class="steps">
 
@@ -2572,9 +2611,68 @@
   loadThreshold();
 
   /* ---------------- boot / restore ---------------- */
+  /* ---------------- read-only mode ----------------
+     Anyone who cannot run a search (Shruti, and everyone on the hosted site)
+     gets the results and the tracker, not three setup steps that would fail
+     if they were clicked. The server decides this - show_setup - because the
+     browser has no idea whether a search is even possible here. */
+  function applyReadOnly(){
+    ['step1','step2','step3'].forEach(function(id){
+      var el = $(id);
+      if(el) el.classList.add('hidden');
+    });
+    var s4 = $('step4');
+    if(s4){ s4.classList.remove('locked'); s4.removeAttribute('aria-disabled'); }
+    var tag = s4 && s4.querySelector('.lock-tag');
+    if(tag) tag.remove();
+    var eyebrow = s4 && s4.querySelector('.eyebrow');
+    if(eyebrow) eyebrow.textContent = 'Your matches';
+
+    var he = $('heroEyebrow'), ht = $('heroTitle'), hs = $('heroSub');
+    if(he) he.textContent = 'Your shortlist';
+    if(ht) ht.textContent = 'Roles picked for your resume.';
+    if(hs) hs.textContent = 'Every role below was matched against your resume and '
+      + 'scored 0-100 for fit. Filter the list, then track the ones worth applying to.';
+
+    var card = $('lastRunCard');
+    if(card) card.classList.remove('hidden');
+    loadLastRun();
+  }
+
+  async function loadLastRun(){
+    try{
+      var d = await getJSON('/api/lastrun');
+      if(!d || !d.ok) return;
+      var set = function(id, v){ var e = $(id); if(e) e.textContent = v; };
+      set('lrRoles', (d.roles === null || typeof d.roles === 'undefined') ? '—' : d.roles);
+      set('lrWhen',  d.when || '—');
+      set('lrNew',   (typeof d.new === 'number') ? d.new : '—');
+      set('lrCut',   (typeof d.threshold === 'number') ? ('fit ' + d.threshold + '+') : '—');
+      set('lrRuns',  (typeof d.runs === 'number') ? d.runs : '—');
+      var note = $('lrNote');
+      if(note){
+        if(d.incomplete){
+          note.textContent = 'That run finished incomplete - a job board was '
+            + 'unreachable, so a few roles may be missing. The next run picks them up.';
+        } else if(!d.roles){
+          note.textContent = 'No search has been published yet.';
+        } else {
+          note.textContent = 'Updated automatically after each search.';
+        }
+      }
+    } catch(e){ /* the results table below still works */ }
+  }
+
   (async function boot(){
     try{
       var s = await getJSON('/api/state');
+      if(s.show_setup === false){
+        applyReadOnly();
+        if(typeof s.tracker_count !== 'undefined') setBadge(s.tracker_count);
+        loadResults();
+        refreshExcelMeta();
+        return;
+      }
       if(s.has_key){ markDone(1); unlock(2, false); }
       if(s.has_profile){
         markDone(2);
