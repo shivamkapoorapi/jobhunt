@@ -1720,13 +1720,17 @@ def _run_locked(_args):
         log("! Run finished INCOMPLETE - a source failed; see the Run Report "
             "sheet and rerun to recover")
 
-    publish_results(keep, saved[0] if saved else "")
-
+    # History first, THEN publish. publish_results ships load_history() to the
+    # site, so running it first sent a history that was missing the run that had
+    # just finished -- the site's "last run" card showed the PREVIOUS run's new
+    # count and incomplete flag, one run stale, forever.
     record_run_history(
         rows=rows, keep=keep, lowfit=lowfit, needs_check=needs_check,
         quarantine=quarantine, new_keys=new_keys,
         source_outcomes=source_outcomes, incomplete=run_incomplete,
         started=run_started, workbook=(saved[0] if saved else ""))  # noqa: F821
+
+    publish_results(keep, saved[0] if saved else "")
 
     log("Run complete")
     log("=" * 58)
