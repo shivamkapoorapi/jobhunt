@@ -1730,7 +1730,7 @@ def _run_locked(_args):
         source_outcomes=source_outcomes, incomplete=run_incomplete,
         started=run_started, workbook=(saved[0] if saved else ""))  # noqa: F821
 
-    publish_results(keep, saved[0] if saved else "")
+    publish_results(keep, saved[0] if saved else "", source_outcomes)
 
     log("Run complete")
     log("=" * 58)
@@ -1860,7 +1860,7 @@ def _merge_into_day(storage, day, payload):
     return payload
 
 
-def publish_results(keep, workbook_path):
+def publish_results(keep, workbook_path, source_outcomes=None):
     """Push this run's rows (and the workbook) to the shared store.
 
     This is the whole point of the store: the search needs 7-15 minutes, which
@@ -1874,6 +1874,25 @@ def publish_results(keep, workbook_path):
     except ImportError:
         return
     if not storage.enabled():
+        return
+
+    # A run that could not reach the job boards must not replace good results
+    # with nothing. On 2026-09-15 the PC's connection dropped mid-run, all 85
+    # sources failed, and this published an empty list over the live site - the
+    # job seeker opened it to zero roles. The local Excel still records the
+    # failed run; the website keeps showing the last good one.
+    outcomes = source_outcomes or []
+    total = len(outcomes)
+    failed = sum(1 for o in outcomes if o.get("status") == "FAILED")
+    if not keep or (total and failed * 2 > total):
+        log("-" * 58)
+        log("PUBLISHING SKIPPED - the website keeps its previous results")
+        if not keep:
+            log("  reason     this run produced 0 roles")
+        if total and failed * 2 > total:
+            log(f"  reason     {failed} of {total} sources failed - check your internet")
+        log("  fix        re-run once the connection is back: python jobhunt.py run")
+        log("-" * 58)
         return
 
     try:
