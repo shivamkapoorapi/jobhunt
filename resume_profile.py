@@ -403,7 +403,7 @@ Return ONLY this JSON object - no markdown fences, no commentary:
   "headline": "one line, at most 90 characters, e.g. 'Product Manager - ex-Senior SWE, Columbia MS 2027'",
   "summary": "2-3 plain sentences: who they are, what they have shipped, what they are looking for now. Written for the candidate to read about themselves.",
   "target_titles": ["8-14 exact job titles to search for - the roles they should get hired into next"],
-  "secondary_titles": ["6-12 adjacent titles worth surfacing but ranked below the targets"],
+  "secondary_titles": ["6-12 adjacent titles worth surfacing but ranked below the targets - in the SAME job family as the targets, never a different function (no engineering titles for someone moving into product, even with an engineering background)"],
   "exclude_title_words": ["8-15 lowercase words or phrases that mean a posting is NOT for them - wrong function (e.g. 'account executive'), or wrong seniority given their timeline"],
   "skills": ["12-25 concrete skills, tools and domains taken from the resume"],
   "locations": ["ONLY locations evidenced in the resume (current city, explicitly stated preferences), most preferred first, plus 'Remote'; exactly ['Remote'] if the resume evidences none"],

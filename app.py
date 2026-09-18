@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import webbrowser
 from datetime import datetime, timedelta
@@ -1090,53 +1091,6 @@ def key_save():
 
 # ---- resume ---------------------------------------------------------------
 
-# "locations" is deliberately NOT here: config.json's locations encode where
-# the user chose to search, which no resume can know - the model has invented
-# San Francisco/Seattle "preferences" before. They are never merged.
-PROFILE_CONFIG_KEYS = ("target_titles", "secondary_titles",
-                       "exclude_title_words", "skills")
-
-
-def _merge_profile_into_config(profile):
-    """Let the new resume ADD scorer keywords - never replace the user's own.
-
-    Case-insensitive union per list: whatever config.json already has stays
-    first, in its original order, and only genuinely new resume entries are
-    appended after it. "companies" and "output_dir" are never touched, and
-    every other key in config.json is left exactly as is.
-    """
-    # Read and write inside one lock, and swap the file in atomically: this
-    # used to truncate config.json in place, so a failure mid-write - or a
-    # threshold save arriving at the same moment - could destroy the whole
-    # config, companies list and all.
-    with _config_lock:
-        cfg = _read_json(CONFIG_PATH, None)
-        if not isinstance(cfg, dict):
-            return
-        changed = False
-        for key in PROFILE_CONFIG_KEYS:
-            values = profile.get(key)
-            if not isinstance(values, list):
-                continue
-            existing = cfg.get(key)
-            merged, seen = [], set()
-            for source in (existing if isinstance(existing, list) else [],
-                           values):
-                for v in source:
-                    if not isinstance(v, str):
-                        continue
-                    v = v.strip()
-                    if v and v.lower() not in seen:
-                        seen.add(v.lower())
-                        merged.append(v)
-            if merged and merged != existing:
-                cfg[key] = merged
-                changed = True
-        if not changed:
-            return
-        _save_config( cfg)
-
-
 @app.route("/api/resume", methods=["POST"])
 @login_required
 def resume_upload():
@@ -1180,30 +1134,70 @@ def resume_upload():
     if not isinstance(profile, dict) or not profile:
         return jsonify(ok=False, error="The resume reader returned nothing usable.")
 
-    # Which resume is currently driving the ranking. The uploaded file stays in
-    # uploads/ until the next upload replaces it, so "what am I applying with?"
-    # is answerable later -- a profile alone cannot tell you which PDF produced it.
-    track("resume_upload", {"file": safe})
-    profile["resume_file"] = safe
-    profile["resume_size"] = int(size)
-    profile["resume_uploaded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    import profile_rules
+    profile, dropped = profile_rules.clean_titles(profile)
 
+    # Which resume is driving the ranking, and when it arrived. profile_version
+    # is epoch seconds: the search on the PC compares it with its own copy to
+    # decide whether to pull this one, and epoch stays correct across the
+    # website's UTC clock and the PC's local one.
+    version = int(time.time())
+    who = (me() or {}).get("name") or ""
+    profile.update({
+        "resume_file": safe,
+        "resume_size": int(size),
+        "resume_uploaded_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "profile_version": version,
+        "uploaded_by": who,
+        "uploaded_via": "website" if IS_SERVERLESS else "this PC",
+        "ignored_titles": dropped,
+    })
+
+    warning = None
+    if storage.enabled():
+        # The file first, under a key tied to this version, so "open resume"
+        # can never show a different PDF from the profile it sits beside.
+        file_key = f"resume:file:{version}"
+        try:
+            with open(path, "rb") as f:
+                ok, why = storage.set_bytes(file_key, f.read())
+        except OSError as e:
+            ok, why = False, str(e)
+        profile["resume_file_key"] = file_key if ok else ""
+        if not ok:
+            warning = ("Your resume was read and saved, but the file itself could "
+                       f"not be stored ({why}), so opening it from here will not work.")
+
+        # Then the profile. On the website the local disk is wiped between
+        # requests, so the shared store is the ONLY place this survives - if
+        # it refuses, say so rather than report a save that will vanish.
+        previous = storage.get_json("profile", None)
+        if not storage.set_json("profile", profile):
+            if ok:
+                storage.delete(file_key)
+            return jsonify(ok=False, error=(
+                "Could not save your resume right now - nothing was changed. "
+                "Try again in a moment."))
+        old_key = previous.get("resume_file_key") if isinstance(previous, dict) else ""
+        if old_key and old_key != profile.get("resume_file_key"):
+            storage.delete(old_key)
+
+    # The local copy: the only copy when there is no shared store, and what
+    # the search reads when this app runs on the same machine.
     _ensure_dir(os.path.dirname(PROFILE_PATH))
     try:
         with open(PROFILE_PATH, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2, ensure_ascii=False)
             f.write("\n")
     except OSError as e:
-        return jsonify(ok=False, error=f"Could not write profile.json: {e}")
+        if not storage.enabled():
+            return jsonify(ok=False, error=f"Could not write profile.json: {e}")
 
-    try:
-        _merge_profile_into_config(profile)
-    except Exception as e:
-        # A failed merge must not lose the profile we just built.
-        return jsonify(ok=True, profile=profile,
-                       warning=f"Profile saved, but config.json was not updated: {e}")
-
-    return jsonify(ok=True, profile=profile)
+    # No merge into config.json any more. The search adds the CURRENT
+    # resume's titles on top of config.json at run time, so a new resume
+    # replaces the old one's keywords instead of piling on top of them.
+    track("resume_upload", {"file": safe, "ignored": ", ".join(dropped)})
+    return jsonify(ok=True, profile=profile, warning=warning)
 
 
 # ---- run / progress -------------------------------------------------------
@@ -1978,12 +1972,6 @@ def resume_file():
         return jsonify(ok=False, error="No resume is attached yet."), 404
 
     safe = os.path.basename(str(name))
-    path = os.path.join(UPLOAD_DIR, safe)
-    if not os.path.isfile(path):
-        return jsonify(
-            ok=False,
-            error="That resume file is no longer on disk. Upload it again."), 404
-
     ext = os.path.splitext(safe)[1].lower()
     mime = {".pdf": "application/pdf",
             ".txt": "text/plain",
@@ -1992,6 +1980,26 @@ def resume_file():
     # .docx cannot render in a browser tab, so let it download instead of
     # showing a wall of binary.
     inline = ext in (".pdf", ".txt")
+
+    # The stored copy first: it is tied to this exact profile version, while
+    # a file on disk with the same name may be an older upload.
+    key = profile.get("resume_file_key") if isinstance(profile, dict) else ""
+    if key and storage.enabled():
+        blob = storage.get_bytes(key)
+        if blob is storage.MISSING:
+            return jsonify(ok=False, error=(
+                "Could not reach the file store - try again in a moment.")), 503
+        if blob:
+            from flask import Response
+            disp = "inline" if inline else "attachment"
+            return Response(blob, mimetype=mime, headers={
+                "Content-Disposition": f'{disp}; filename="{safe}"'})
+
+    path = os.path.join(UPLOAD_DIR, safe)
+    if not os.path.isfile(path):
+        return jsonify(
+            ok=False,
+            error="That resume file is no longer stored. Upload it again."), 404
     return send_from_directory(UPLOAD_DIR, safe, mimetype=mime,
                                as_attachment=not inline,
                                download_name=safe)
@@ -2145,6 +2153,7 @@ def lastrun():
         new=(latest or {}).get("new"),
         threshold=(published or {}).get("threshold") or (latest or {}).get("threshold"),
         incomplete=bool((latest or {}).get("incomplete")),
+        generated_epoch=(published or {}).get("generated_epoch"),
         machine=(published or {}).get("machine", ""),
         runs=len(runs),
     )

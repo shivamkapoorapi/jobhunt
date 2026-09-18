@@ -1299,7 +1299,15 @@
       if(data && data.ok && data.profile){
         renderProfile(data.profile);
         markDone(2);
-        unlock(3, true);
+        unlock(3, !readOnlyMode);
+        var ign = Array.isArray(data.profile.ignored_titles) ? data.profile.ignored_titles : [];
+        var msg = readOnlyMode
+          ? 'Saved. The next search will use this resume - the results below still reflect the previous one until then.'
+          : 'Saved. The next search will use this resume.';
+        if(ign.length) msg += ' Left out, outside your job family: ' + ign.slice(0, 5).join(', ') + '.';
+        bubble(resOut, 'ok', 'Resume saved', msg);
+        if(data.warning) bubble(resOut, 'err', 'One thing to note', data.warning);
+        if(readOnlyMode) loadLastRun();
       } else {
         bubble(resOut, 'err', 'Could not read that', (data && data.error) || 'The resume could not be parsed. Try another file.');
       }
@@ -1311,8 +1319,21 @@
     }
   }
 
+  var readOnlyMode = false, currentProfile = null;
+
+  /* epoch seconds -> "18 Sep 2026, 9:40 PM" in the viewer's own time zone */
+  function fmtEpoch(sec){
+    var d = new Date(Number(sec) * 1000);
+    if(isNaN(d.getTime())) return '';
+    var y = d.getFullYear(), m = ('0' + (d.getMonth() + 1)).slice(-2),
+        dd = ('0' + d.getDate()).slice(-2), hh = ('0' + d.getHours()).slice(-2),
+        mi = ('0' + d.getMinutes()).slice(-2);
+    return fmtWhen(y + '-' + m + '-' + dd + ' ' + hh + ':' + mi);
+  }
+
   function renderProfile(p){
     if(!p) return;
+    currentProfile = p;
     $('pName').textContent = p.name || 'Your profile';
     $('pHead').textContent = p.headline || '';
     $('pSum').textContent = p.summary || '';
@@ -1334,7 +1355,12 @@
         $('attName').textContent = p.resume_file;
         var bits = [];
         if(p.resume_size) bits.push(fmtBytes(p.resume_size));
-        if(p.resume_uploaded_at) bits.push('added ' + fmtWhen(p.resume_uploaded_at));
+        if(p.profile_version){
+          bits.push('added ' + fmtEpoch(p.profile_version) +
+                    (p.uploaded_by ? ' by ' + p.uploaded_by : ''));
+        } else if(p.resume_uploaded_at){
+          bits.push('added ' + fmtWhen(p.resume_uploaded_at));
+        }
         $('attMeta').textContent = bits.join('  ·  ');
         box.hidden = false;
       } else {
@@ -2944,10 +2970,25 @@
     /* The threshold and fresh-window controls only take effect on the NEXT
        search, which this user cannot start. Showing them promises a change
        that would never happen. */
-    ['step1','step2','step3','threshBox'].forEach(function(id){
+    ['step1','step3','threshBox'].forEach(function(id){
       var el = $(id);
       if(el) el.classList.add('hidden');
     });
+    readOnlyMode = true;
+
+    /* The resume stays: she can replace it here, and the next search on the
+       PC picks it up. Unlocked, and worded for her rather than as "Step 02". */
+    var s2 = $('step2');
+    if(s2){ s2.classList.remove('locked'); s2.removeAttribute('aria-disabled'); }
+    var t2 = s2 && s2.querySelector('.lock-tag');
+    if(t2) t2.remove();
+    var e2 = s2 && s2.querySelector('.eyebrow');
+    if(e2) e2.textContent = 'Your resume';
+    var h2 = s2 && s2.querySelector('h2');
+    if(h2) h2.textContent = 'Your resume';
+    var n2 = s2 && s2.querySelector('.note');
+    if(n2) n2.textContent = 'Upload a new resume any time. The next search uses it - '
+      + 'the job titles it looks for, the skills, and the 0-100 fit score all follow it.';
     var rb = $('resultBox');
     if(rb) rb.classList.add('hidden');
     var s4 = $('step4');
@@ -2987,6 +3028,10 @@
             + 'unreachable, so a few roles may be missing. The next run picks them up.';
         } else if(!d.roles){
           note.textContent = 'No search has been published yet.';
+        } else if(currentProfile && currentProfile.profile_version && d.generated_epoch &&
+                  Number(currentProfile.profile_version) > Number(d.generated_epoch)){
+          note.textContent = 'Your resume was updated after this search, so these results '
+            + 'still reflect the previous one. The next search will use the new resume.';
         } else {
           note.textContent = 'These are the roles open right now that match your '
             + 'resume - not just ones posted today. Each search replaces this list '
@@ -3002,6 +3047,7 @@
       var s = await getJSON('/api/state');
       if(s.show_setup === false){
         applyReadOnly();
+        if(s.profile){ renderProfile(s.profile); markDone(2); }
         if(typeof s.tracker_count !== 'undefined') setBadge(s.tracker_count);
         loadResults();
         refreshExcelMeta();

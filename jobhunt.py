@@ -1785,12 +1785,121 @@ def preflight(cfg):
         log(f"  STORAGE   could not check ({type(e).__name__})")
 
     # 3. What this run will actually keep
+    _sync_profile_from_store()
     log(f"  PROFILE   {_profile_name()}")
+    _apply_profile_keywords(cfg)
     log(f"  CUTOFF    fit {MIN_AI_FIT}+ reaches the apply list"
         f"   |  fresh = last {cfg.get('fresh_days', 2)} days"
         f"   |  max age {cfg.get('max_age_days', 45)} days")
     log(f"  BOARDS    {len(cfg.get('companies', []))} company job boards")
     log("-" * 58)
+
+
+PROFILE_FILE = os.path.join(HERE, "profile.json")
+# "locations" is deliberately NOT here: config.json's locations are where the
+# user chose to search, which no resume can know - the model has invented
+# San Francisco/Seattle "preferences" before.
+PROFILE_KEYS = ("target_titles", "secondary_titles", "exclude_title_words", "skills")
+
+
+def _read_local_profile():
+    try:
+        with open(PROFILE_FILE, encoding="utf-8-sig") as f:
+            p = json.load(f)
+        return p if isinstance(p, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _sync_profile_from_store():
+    """Pull the resume profile from the website when it is newer than ours.
+
+    The job seeker can upload a resume on the website, but the search runs
+    here. Without this pull the search would keep scoring against the old
+    resume forever - and publish_results would push the old one back up over
+    hers. Version is the upload time in epoch seconds, so the website's UTC
+    clock and this machine's local clock compare correctly.
+    """
+    try:
+        import storage
+        import profile_rules
+    except ImportError:
+        return
+    if not storage.enabled():
+        return
+    remote = storage.get_json("profile", None)
+    if remote is storage.MISSING or remote is storage.CORRUPT:
+        log("  RESUME    could not check the website for a newer resume - "
+            "using this machine's")
+        return
+    if not isinstance(remote, dict) or not remote.get("candidate_block"):
+        return
+    local = _read_local_profile() or {}
+    rv = profile_rules.profile_version(remote)
+    if rv <= profile_rules.profile_version(local):
+        return
+    tmp = PROFILE_FILE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(remote, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, PROFILE_FILE)
+    except OSError as e:
+        log(f"  RESUME    newer resume on the website, but it could not be saved "
+            f"here ({type(e).__name__}) - using the old one")
+        return
+    when = datetime.fromtimestamp(rv).strftime("%d %b %Y, %I:%M %p")
+    who = remote.get("uploaded_by") or "someone"
+    log(f"  RESUME    using the resume uploaded on the website by {who}, {when}")
+
+    # The PDF too, so the local app can open the resume it is scoring with.
+    key, name = remote.get("resume_file_key"), remote.get("resume_file")
+    if key and name:
+        blob = storage.get_bytes(key)
+        if blob and blob is not storage.MISSING:
+            try:
+                up = os.path.join(HERE, "uploads")
+                os.makedirs(up, exist_ok=True)
+                with open(os.path.join(up, os.path.basename(str(name))), "wb") as f:
+                    f.write(blob)
+            except OSError:
+                pass
+
+
+def _apply_profile_keywords(cfg):
+    """config.json is the base you control; the current resume's titles and
+    skills go on top for THIS run only and are never saved back.
+
+    That is what makes a new resume replace the old one: yesterday's resume
+    keywords were never written into config.json, so they are simply not
+    there today.
+    """
+    prof = _read_local_profile()
+    if not prof:
+        return
+    try:
+        import profile_rules
+        prof, dropped = profile_rules.clean_titles(prof)
+    except ImportError:
+        dropped = []
+    added = 0
+    for key in PROFILE_KEYS:
+        base = [v for v in (cfg.get(key) or []) if isinstance(v, str)]
+        seen = {v.strip().lower() for v in base}
+        extra = []
+        for v in prof.get(key) or []:
+            if not isinstance(v, str):
+                continue
+            v = v.strip()
+            if v and v.lower() not in seen:
+                seen.add(v.lower())
+                extra.append(v)
+        cfg[key] = base + extra
+        added += len(extra)
+    log(f"  KEYWORDS  config.json + {added} from the resume "
+        f"({len(cfg.get('target_titles') or [])} target titles, "
+        f"{len(cfg.get('secondary_titles') or [])} secondary)")
+    if dropped:
+        log(f"            left out, outside her job family: {', '.join(dropped[:5])}")
 
 
 def _profile_name():
@@ -1916,6 +2025,7 @@ def publish_results(keep, workbook_path, source_outcomes=None):
             "total": len(rows),
             "threshold": MIN_AI_FIT,
             "generated": f"{datetime.now():%Y-%m-%d %H:%M}",
+            "generated_epoch": int(time.time()),
             "machine": platform.node(),
         }
         log("-" * 58)
@@ -1983,13 +2093,22 @@ def publish_results(keep, workbook_path, source_outcomes=None):
         log(f"  history    {len(hist)} runs sent"
             if storage.set_json("history", {"runs": hist})
             else "  history    FAILED")
-        try:
-            with open(os.path.join(HERE, "profile.json"), encoding="utf-8-sig") as f:
-                prof = json.load(f)
+        # Push our profile only if it is not older than the website's. The
+        # job seeker may have uploaded a newer resume since this run started
+        # scoring; overwriting it would silently undo her upload.
+        import profile_rules
+        prof = _read_local_profile()
+        remote_prof = storage.get_json("profile", None)
+        if not prof:
+            log("  profile    skipped - no readable profile.json")
+        elif remote_prof is storage.MISSING or remote_prof is storage.CORRUPT:
+            log("  profile    left as is - could not compare with the website's")
+        elif (isinstance(remote_prof, dict) and profile_rules.profile_version(remote_prof)
+                > profile_rules.profile_version(prof)):
+            log("  profile    left as is - the website has a newer resume")
+        else:
             log(f"  profile    {prof.get('name', 'sent')}"
                 if storage.set_json("profile", prof) else "  profile    FAILED")
-        except (OSError, ValueError):
-            log("  profile    skipped - no readable profile.json")
 
         if workbook_path and os.path.exists(workbook_path):
             with open(workbook_path, "rb") as f:
