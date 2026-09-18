@@ -2061,6 +2061,62 @@ def history():
                    first_date=(min(str(r.get("date") or "") for r in runs) if runs else ""))
 
 
+PREF_TYPES = ("both", "intern", "fulltime")
+
+
+def _prefs_path():
+    """Per-account file; _write_json_atomic mirrors it to user:<id>:prefs in
+    the shared store, so the choice follows her to any device."""
+    if AUTH_DISABLED:
+        return os.path.join(WRITABLE_DIR, "prefs.json")
+    uid = (me() or {}).get("id")
+    return auth.user_file(uid, "prefs.json") if uid else None
+
+
+def _clean_roles(roles):
+    return [str(r).strip()[:60] for r in roles if str(r).strip()][:20]
+
+
+@app.route("/api/prefs")
+@login_required
+def prefs_get():
+    """The job type and role families this user chose to see."""
+    path = _prefs_path()
+    data = _read_json(path, None) if path else None
+    if not isinstance(data, dict):
+        data = {}
+    job_type = data.get("job_type")
+    roles = data.get("roles")
+    return jsonify(ok=True, prefs={
+        "job_type": job_type if job_type in PREF_TYPES else "both",
+        # null means "every role" - distinct from [] ("she unticked them all")
+        "roles": _clean_roles(roles) if isinstance(roles, list) else None,
+    })
+
+
+@app.route("/api/prefs", methods=["POST"])
+@login_required
+def prefs_set():
+    body = request.get_json(silent=True) or {}
+    job_type = body.get("job_type")
+    if job_type not in PREF_TYPES:
+        return jsonify(ok=False, error="job_type must be both, intern or fulltime."), 400
+    roles = body.get("roles")
+    if roles is not None:
+        if not isinstance(roles, list):
+            return jsonify(ok=False, error="roles must be a list or null."), 400
+        roles = _clean_roles(roles)
+    path = _prefs_path()
+    if not path:
+        return jsonify(ok=False, error="Sign in to save preferences."), 401
+    try:
+        _write_json_atomic(path, {"job_type": job_type, "roles": roles})
+    except OSError:
+        return jsonify(ok=False, error="Could not save your preference right now.")
+    track("prefs", {"job_type": job_type, "roles": ", ".join(roles) if roles else "all"})
+    return jsonify(ok=True, prefs={"job_type": job_type, "roles": roles})
+
+
 @app.route("/api/lastrun")
 @login_required
 def lastrun():

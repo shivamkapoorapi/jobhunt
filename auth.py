@@ -402,6 +402,7 @@ EVENT_LABELS = {
     "apply_click": "Opened a job to apply",
     "download": "Downloaded the spreadsheet",
     "key_saved": "Saved an API key",
+    "prefs": "Changed job type / roles",
 }
 
 

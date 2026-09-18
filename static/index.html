@@ -432,6 +432,34 @@
   .fpop .flinks{display:flex;gap:12px;margin-top:7px}
   .norows{color:var(--muted);padding:14px 0;font-size:13px}
 
+  /* ---------- SAVED PREFERENCES (job type + roles) ---------- */
+  .prefbar{border:1px solid var(--ink);background:#fff;padding:12px 13px;margin-bottom:10px}
+  .prefrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .prefrow + .prefrow{margin-top:11px}
+  .prefrow > .flab{margin:0;min-width:64px}
+  .fquick .pc{font-family:var(--mono);font-size:9.5px;opacity:.75;margin-left:5px}
+  .rolechips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto;min-width:0}
+  .rchip{
+    display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+    background:var(--card);padding:5px 9px;cursor:pointer;font-size:12.5px;color:var(--ink);
+  }
+  .rchip:hover{border-color:var(--ink)}
+  .rchip input{accent-color:var(--blue);width:14px;height:14px;margin:0}
+  .rchip.off{color:var(--faint);background:transparent}
+  .rchip .rcount{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .rolelinks{display:inline-flex;gap:12px}
+  .prefbar .flink, .norows .flink{
+    background:none;border:0;padding:0;color:var(--blue);cursor:pointer;
+    font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  }
+  .prefnote{margin:10px 0 0;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  @media (max-width:640px){
+    .prefrow > .flab{min-width:0;flex:1 1 100%}
+    .rchip{padding:9px 11px;font-size:14px}
+    .rchip input{width:18px;height:18px}
+    .fquick .pc{font-size:11px}
+  }
+
   /* ---------- DATE RANGE ---------- */
   .datebar{border:1px solid var(--line);background:#fff;padding:11px 12px;margin-bottom:10px}
   .daterow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
@@ -915,6 +943,25 @@
           <button type="button" class="btn btn-ghost" id="trackTop" disabled>Track top 20 &#8594;</button>
         </div>
         <div id="rankOut"></div>
+        <div class="prefbar" id="prefBar">
+          <div class="prefrow">
+            <span class="flab">Job type</span>
+            <div class="fquick" id="typeQuick">
+              <button type="button" data-type="intern">Internship<span class="pc" id="pcIntern"></span></button>
+              <button type="button" data-type="fulltime">Full-time<span class="pc" id="pcFull"></span></button>
+              <button type="button" data-type="both" class="on">Both<span class="pc" id="pcBoth"></span></button>
+            </div>
+          </div>
+          <div class="prefrow">
+            <span class="flab">Roles</span>
+            <div class="rolechips" id="roleChips"></div>
+            <span class="rolelinks">
+              <button type="button" class="flink" id="rolesAll">All</button>
+              <button type="button" class="flink" id="rolesNone">None</button>
+            </span>
+          </div>
+          <p class="prefnote" id="prefNote">Your choice is saved to your account.</p>
+        </div>
         <div class="datebar" id="dateBar">
           <div class="fquick" id="dateQuick">
             <button type="button" data-range="today" class="on">Today</button>
@@ -2133,6 +2180,7 @@
   }
 
   function passes(r){
+    if(!passesPref(r)) return false;
     if(flt.q){
       var hay = (txt(r,'company') + ' ' + txt(r,'title') + ' ' + txt(r,'location')).toLowerCase();
       if(hay.indexOf(flt.q) === -1) return false;
@@ -2224,6 +2272,7 @@
 
   function renderRank(){
     if(!rankBody) return;
+    renderPrefUI();
     if(!rankRows.length){
       emptyRank('No ranked rows yet. Run a search and this list fills in.');
       syncFilterUI(0);
@@ -2234,7 +2283,10 @@
     if(trackTopBtn) trackTopBtn.disabled = !vis.length;
     if(!vis.length){
       rankBody.innerHTML = '<tr><td colspan="6" class="norows">' +
-        'No rows match these filters. <button type="button" class="flink" id="fClear2">Clear them</button></td></tr>';
+        ((prefActive() && !filterActive())
+          ? 'No roles match your saved job type and roles. Choose <b>Both</b> or tick more roles above.'
+          : 'No rows match these filters. <button type="button" class="flink" id="fClear2">Clear them</button>') +
+        '</td></tr>';
       return;
     }
     rankBody.innerHTML = vis.map(function(pair){
@@ -2481,6 +2533,159 @@
     closePop();
     renderRank();
   }
+
+  /* ---------------- saved preferences: job type + roles ----------------
+     Kept apart from the column filters on purpose. "Clear filters" wipes the
+     ad-hoc ones; these are what she wants to see every day, so they are saved
+     to her account and survive a clear, a reload and a different device. */
+  var ROLE_ORDER = ['Associate Product Manager', 'Product Manager', 'Product Analyst',
+                    'Business / Data Analyst', 'Program / Project Manager',
+                    'Strategy & Operations', 'Engineering', 'Other'];
+  var pref = {type: 'both', roles: null};      /* roles null = every role */
+  var INTERN_RE = /\b(intern|internship|co-?op)\b/i;
+
+  function isIntern(r){
+    /* level comes from the search itself; the title is only a fallback */
+    var lv = String((r && r.level) || '').toLowerCase();
+    if(lv) return lv.indexOf('intern') !== -1;
+    return INTERN_RE.test(txt(r, 'title'));
+  }
+
+  function roleOf(r){
+    /* Order matters: "Associate Product Manager" is checked before
+       "Product Manager", and "Product Manager Analyst" is a PM, not an analyst. */
+    var t = txt(r, 'title').toLowerCase();
+    if(/associate product manag|\bapm\b/.test(t)) return 'Associate Product Manager';
+    if(/product (manager|management|owner|lead)|\bpm\b/.test(t)) return 'Product Manager';
+    if(/product analyst/.test(t)) return 'Product Analyst';
+    if(/business analyst|data analyst|analytics|\banalyst\b/.test(t)) return 'Business / Data Analyst';
+    if(/program manager|project manager|\btpm\b/.test(t)) return 'Program / Project Manager';
+    if(/strateg|operations|bizops/.test(t)) return 'Strategy & Operations';
+    if(/engineer|developer|\bswe\b/.test(t)) return 'Engineering';
+    return 'Other';
+  }
+  function roleKey(r){ return r._role || (r._role = roleOf(r)); }
+
+  function prefActive(){ return !!pref && (pref.type !== 'both' || !!pref.roles); }
+
+  /* ignore = 'type' or 'roles' lets each control count against the OTHER
+     choice only, so the numbers on the buttons stay meaningful */
+  function passesPref(r, ignore){
+    if(!pref) return true;
+    if(ignore !== 'type' && pref.type !== 'both'){
+      var it = isIntern(r);
+      if(pref.type === 'intern' ? !it : it) return false;
+    }
+    if(ignore !== 'roles' && pref.roles && !pref.roles.has(roleKey(r))) return false;
+    return true;
+  }
+
+  var roleSig = null;
+  function renderPrefUI(){
+    if(!pref || !$('prefBar')) return;
+    var nI = 0, nF = 0, rc = Object.create(null);
+    rankRows.forEach(function(r){
+      r = r || {};
+      if(passesPref(r, 'type')){ if(isIntern(r)) nI++; else nF++; }
+      if(passesPref(r, 'roles')){ var k = roleKey(r); rc[k] = (rc[k] || 0) + 1; }
+    });
+    var put = function(id, n){ var e = $(id); if(e) e.textContent = rankRows.length ? ' ' + n : ''; };
+    put('pcIntern', nI); put('pcFull', nF); put('pcBoth', nI + nF);
+    var tq = $('typeQuick');
+    if(tq) tq.querySelectorAll('button[data-type]').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-type') === pref.type);
+    });
+
+    /* every role present in this list, plus any saved role that is absent
+       today - a choice she made must not vanish because today had none */
+    var names = ROLE_ORDER.filter(function(n){
+      return rc[n] || (pref.roles && pref.roles.has(n));
+    });
+    var wrap = $('roleChips');
+    if(!wrap) return;
+    var sig = names.join('|');
+    if(sig !== roleSig){
+      roleSig = sig;
+      wrap.innerHTML = names.length ? names.map(function(n){
+        return '<label class="rchip" data-role="' + escapeHtml(n) + '">' +
+               '<input type="checkbox"><span class="rname">' + escapeHtml(n) + '</span>' +
+               '<span class="rcount"></span></label>';
+      }).join('') : '<span class="prefnote">No roles in this list yet.</span>';
+    }
+    wrap.querySelectorAll('.rchip').forEach(function(l){
+      var n = l.getAttribute('data-role');
+      var on = !pref.roles || pref.roles.has(n);
+      var box = l.querySelector('input');
+      if(box) box.checked = on;
+      l.classList.toggle('off', !on);
+      var c = l.querySelector('.rcount');
+      if(c) c.textContent = String(rc[n] || 0);
+    });
+  }
+
+  var prefTimer = null;
+  function savePref(){
+    renderRank();
+    var note = $('prefNote');
+    if(note) note.textContent = 'Saving...';
+    clearTimeout(prefTimer);
+    prefTimer = setTimeout(async function(){
+      try{
+        var d = await postJSON('/api/prefs', {
+          job_type: pref.type,
+          roles: pref.roles ? Array.from(pref.roles) : null
+        });
+        if(note) note.textContent = (d && d.ok)
+          ? 'Saved to your account.'
+          : ((d && d.error) || 'Could not save - this applies to this visit only.');
+      } catch(e){
+        if(note) note.textContent = 'Could not save - this applies to this visit only.';
+      }
+    }, 350);
+  }
+
+  var tqEl = $('typeQuick');
+  if(tqEl){
+    tqEl.addEventListener('click', function(e){
+      var b = e.target && e.target.closest ? e.target.closest('button[data-type]') : null;
+      if(!b) return;
+      pref.type = b.getAttribute('data-type');
+      savePref();
+    });
+  }
+  var rcEl = $('roleChips');
+  if(rcEl){
+    rcEl.addEventListener('change', function(e){
+      var box = e.target;
+      if(!box || box.type !== 'checkbox') return;
+      var all = [], on = [];
+      rcEl.querySelectorAll('.rchip').forEach(function(l){
+        var n = l.getAttribute('data-role'), c = l.querySelector('input');
+        all.push(n);
+        if(c && c.checked) on.push(n);
+      });
+      /* every chip ticked = "all roles", stored as null so a role family
+         that appears later is included rather than silently filtered out */
+      pref.roles = (on.length === all.length) ? null : new Set(on);
+      savePref();
+    });
+  }
+  var raEl = $('rolesAll');
+  if(raEl) raEl.addEventListener('click', function(){ pref.roles = null; savePref(); });
+  var rnEl = $('rolesNone');
+  if(rnEl) rnEl.addEventListener('click', function(){ pref.roles = new Set(); savePref(); });
+
+  (async function loadPref(){
+    try{
+      var d = await getJSON('/api/prefs');
+      if(d && d.ok && d.prefs){
+        var t = d.prefs.job_type;
+        pref.type = (t === 'intern' || t === 'fulltime') ? t : 'both';
+        pref.roles = Array.isArray(d.prefs.roles) ? new Set(d.prefs.roles) : null;
+      }
+    } catch(e){ /* defaults stand: Both, every role */ }
+    renderRank();
+  })();
 
   var dq = $('dateQuick');
   if(dq){
