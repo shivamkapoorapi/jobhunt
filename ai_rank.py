@@ -23,9 +23,39 @@ import time
 import urllib.error
 import urllib.request
 
-MODEL = "gemini-3.5-flash-lite"
-ENDPOINT = ("https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{MODEL}:generateContent")
+# Tried in order. The first is cheap and fast; the rest exist because a model
+# can be busy for everyone at once - on 2026-09-28 gemini-3.5-flash-lite
+# answered 503 "experiencing high demand" for half an hour while
+# gemini-3.6-flash was fine, and without a fallback the whole run would have
+# published unscored roles.
+MODELS = ("gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash")
+MODEL = MODELS[0]
+
+_active = MODELS[0]
+_active_lock = threading.Lock()
+
+
+def _endpoint(model):
+    return ("https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent")
+
+
+ENDPOINT = _endpoint(MODEL)
+
+
+def active_model():
+    """Whichever model is answering right now."""
+    with _active_lock:
+        return _active
+
+
+def _set_active(model):
+    global _active
+    with _active_lock:
+        if _active != model:
+            _active = model
+            return True
+    return False
 # 10, not 20: batches now carry up to 1500 chars of description text each.
 BATCH = 10
 WORKERS = 2
@@ -174,24 +204,50 @@ def _call(key, prompt, retries=None, timeout=180):
     except (TypeError, ValueError):
         attempts = RETRIES
     last = RuntimeError("request was never attempted")
+    # Start at whichever model is currently answering, then work through the
+    # rest. A model that is merely busy must not sink the run.
+    current = active_model()
+    order = [current] + [m for m in MODELS if m != current]
+    for model in order:
+        try:
+            return _attempt_model(key, body, model, attempts, timeout)
+        except _Retryable as e:
+            last = e.wrapped
+            continue
+    raise last
+
+
+class _Retryable(Exception):
+    """This model kept failing in a way another model might not."""
+
+    def __init__(self, wrapped):
+        super().__init__(str(wrapped))
+        self.wrapped = wrapped
+
+
+def _attempt_model(key, body, model, attempts, timeout):
+    last = RuntimeError("request was never attempted")
     for attempt in range(attempts):
         req = urllib.request.Request(
-            ENDPOINT, data=body,
+            _endpoint(model), data=body,
             headers={"x-goog-api-key": key, "Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 data = json.loads(r.read().decode("utf-8", "replace"))
         except urllib.error.HTTPError as e:
             last = e
-            # 429 = free-tier RPM cap, 5xx = transient. Anything else is fatal.
+            # 429 = free-tier RPM cap, 5xx = transient. Anything else - a bad
+            # key, a blocked project - is fatal and no other model will fix it.
             if e.code not in (429, 500, 502, 503, 504):
                 raise
-            time.sleep(min(2 ** attempt * 3, 45))
+            if attempt + 1 < attempts:
+                time.sleep(min(2 ** attempt * 3, 45))
             continue
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError,
                 OSError) as e:
             last = e
-            time.sleep(min(2 ** attempt * 3, 45))
+            if attempt + 1 < attempts:
+                time.sleep(min(2 ** attempt * 3, 45))
             continue
         # A 200 carrying no candidates (safety block, MAX_TOKENS, quota body)
         # used to escape as a bare KeyError/IndexError with no readable text.
@@ -214,8 +270,13 @@ def _call(key, prompt, retries=None, timeout=180):
                 "model returned no text" + (f" ({reason})" if reason else ""))
         if not isinstance(parts, list):
             raise RuntimeError("model returned no text (malformed response)")
+        if _set_active(model):
+            # Sticky for the rest of the run: every later batch goes straight
+            # to the model that works instead of timing out on the busy one.
+            print(f"  ! Gemini switched to {model} (the previous model was "
+                  f"unavailable)", flush=True)
         return "".join(p.get("text", "") for p in parts if isinstance(p, dict))
-    raise last
+    raise _Retryable(last)
 
 
 def _parse(text):
@@ -307,7 +368,7 @@ def rerank(rows, log=print, limit=None):
     chunks = [list(enumerate(targets))[i:i + BATCH]
               for i in range(0, len(targets), BATCH)]
     log(f"  scoring {len(targets)} postings against her profile "
-        f"({len(chunks)} batches, {MODEL})...")
+        f"({len(chunks)} batches, {active_model()})...")
 
     done = [0]
     failed = [0]

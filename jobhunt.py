@@ -1761,7 +1761,7 @@ def preflight(cfg):
         try:
             reply = ai_rank._call(key, 'Reply with exactly: OK', retries=1, timeout=20)
             ok = "OK" in (reply or "")
-            log(f"  GEMINI    key valid, model {ai_rank.MODEL} responded"
+            log(f"  GEMINI    key valid, model {ai_rank.active_model()} responded"
                 if ok else
                 f"  GEMINI    key answered oddly ({str(reply)[:40]!r}) - continuing")
         except Exception as e:
